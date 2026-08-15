@@ -22,6 +22,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
+        'specialty',
     ];
 
     /**
@@ -33,6 +35,47 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    public function patientAppointments()
+    {
+        return $this->hasMany(Appointment::class, 'patient_id');
+    }
+
+    public function doctorAppointments()
+    {
+        return $this->hasMany(Appointment::class, 'doctor_id');
+    }
+
+    public function patientConsultations()
+    {
+        return $this->hasMany(Consultation::class, 'patient_id');
+    }
+
+    public function doctorConsultations()
+    {
+        return $this->hasMany(Consultation::class, 'doctor_id');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class, 'patient_id');
+    }
+
+    public function medicalNotesAsPatient()
+    {
+        return $this->hasMany(MedicalNote::class, 'patient_id');
+    }
+
+    public function medicalNotesAsDoctor()
+    {
+        return $this->hasMany(MedicalNote::class, 'doctor_id');
+    }
+
+    public function consultationMessages()
+    {
+        return $this->hasMany(ConsultationMessage::class, 'sender_id');
+    }
+
 
     /**
      * Get the attributes that should be cast.
