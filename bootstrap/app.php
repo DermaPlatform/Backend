@@ -19,6 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
          * blows up with a 500 whenever a client omits the JSON accept header.
          */
         $middleware->redirectGuestsTo(fn (): ?string => null);
+
+        // تسجيل الـ admin middleware الجديد للـ Sprint 2
+        $middleware->alias([
+            'admin' => \App\Http\Middleware\EnsureAdmin::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
