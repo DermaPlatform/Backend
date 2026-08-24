@@ -1,0 +1,527 @@
+{
+  "info": {
+    "name": "Nadara API v1",
+    "description": "Nadara dermatology clinic platform — Sprint 1 (auth) + Sprint 2 (catalog, profile, admin).\n\nSetup:\n1. Run `php artisan serve` in the Backend folder.\n2. Run `php artisan migrate:fresh --seed` once to get the demo accounts.\n3. Send any of the Login requests — the token is saved automatically into the {{token}} variable.\n\nDemo accounts (password for all: `password`):\n- admin@nadara.test\n- doctor@nadara.test\n- patient@nadara.test",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000/api/v1" },
+    { "key": "token", "value": "" },
+    { "key": "service_id", "value": "1" },
+    { "key": "category_id", "value": "1" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register (patient)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "if (j.data && j.data.token) { pm.collectionVariables.set('token', j.data.token); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Patient\",\n  \"email\": \"new.patient@example.com\",\n  \"phone\": \"0591234567\",\n  \"password\": \"Password123!\",\n  \"password_confirmation\": \"Password123!\",\n  \"device_name\": \"postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login as ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('token', pm.response.json().data.token);",
+                  "console.log('Logged in as admin');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login as PATIENT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('token', pm.response.json().data.token);",
+                  "console.log('Logged in as patient');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"patient@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login as DOCTOR",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('token', pm.response.json().data.token);",
+                  "console.log('Logged in as doctor');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"doctor@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Forgot password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/forgot-password", "host": ["{{base_url}}"], "path": ["auth", "forgot-password"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"patient@nadara.test\"\n}" }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"] }
+          }
+        },
+        {
+          "name": "Logout all devices",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/auth/logout-all", "host": ["{{base_url}}"], "path": ["auth", "logout-all"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Public catalog (US-005)",
+      "item": [
+        {
+          "name": "List categories with services",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/categories", "host": ["{{base_url}}"], "path": ["categories"] }
+          }
+        },
+        {
+          "name": "List services",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('is paginated', () => pm.expect(pm.response.json()).to.have.property('meta'));",
+                  "const d = pm.response.json().data;",
+                  "if (d.length) { pm.collectionVariables.set('service_id', d[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/services", "host": ["{{base_url}}"], "path": ["services"] }
+          }
+        },
+        {
+          "name": "Filter services by category",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/services?category_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["services"],
+              "query": [{ "key": "category_id", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "Search services",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/services?q=Laser",
+              "host": ["{{base_url}}"],
+              "path": ["services"],
+              "query": [{ "key": "q", "value": "Laser" }]
+            }
+          }
+        },
+        {
+          "name": "Paginate services",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/services?per_page=5&page=2",
+              "host": ["{{base_url}}"],
+              "path": ["services"],
+              "query": [
+                { "key": "per_page", "value": "5" },
+                { "key": "page", "value": "2" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Show one service",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/services/{{service_id}}", "host": ["{{base_url}}"], "path": ["services", "{{service_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Patient profile (US-006)",
+      "item": [
+        {
+          "name": "Get my profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/profile", "host": ["{{base_url}}"], "path": ["profile"] }
+          }
+        },
+        {
+          "name": "Update my profile",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/profile", "host": ["{{base_url}}"], "path": ["profile"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Updated Name\",\n  \"phone\": \"0599876543\"\n}" }
+          }
+        },
+        {
+          "name": "Update with a taken phone (expect 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('422 not 500', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/profile", "host": ["{{base_url}}"], "path": ["profile"] },
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"0590000001\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Admin — categories (US-008)",
+      "item": [
+        {
+          "name": "List categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/categories", "host": ["{{base_url}}"], "path": ["admin", "categories"] }
+          }
+        },
+        {
+          "name": "Create category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('category_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/admin/categories", "host": ["{{base_url}}"], "path": ["admin", "categories"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Anti-Aging Treatments\"\n}" }
+          }
+        },
+        {
+          "name": "Show category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/categories/{{category_id}}", "host": ["{{base_url}}"], "path": ["admin", "categories", "{{category_id}}"] }
+          }
+        },
+        {
+          "name": "Update category",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/admin/categories/{{category_id}}", "host": ["{{base_url}}"], "path": ["admin", "categories", "{{category_id}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Anti-Aging & Rejuvenation\"\n}" }
+          }
+        },
+        {
+          "name": "Delete empty category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/categories/{{category_id}}", "host": ["{{base_url}}"], "path": ["admin", "categories", "{{category_id}}"] }
+          }
+        },
+        {
+          "name": "Delete category that has services (expect 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('409 Conflict — services are protected', () => pm.response.to.have.status(409));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/categories/1", "host": ["{{base_url}}"], "path": ["admin", "categories", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Admin — services (US-007)",
+      "item": [
+        {
+          "name": "List services (includes deactivated)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/services", "host": ["{{base_url}}"], "path": ["admin", "services"] }
+          }
+        },
+        {
+          "name": "Filter deactivated only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/services?is_active=false",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "services"],
+              "query": [{ "key": "is_active", "value": "false" }]
+            }
+          }
+        },
+        {
+          "name": "Create service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('service_id', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/admin/services", "host": ["{{base_url}}"], "path": ["admin", "services"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category_id\": 1,\n  \"name\": \"Microneedling Session\",\n  \"description\": \"Collagen induction therapy for scars and texture.\",\n  \"price\": 220.00\n}"
+            }
+          }
+        },
+        {
+          "name": "Update service price",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/admin/services/{{service_id}}", "host": ["{{base_url}}"], "path": ["admin", "services", "{{service_id}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"price\": 275.00\n}" }
+          }
+        },
+        {
+          "name": "Toggle active (deactivate / reactivate)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/services/{{service_id}}/toggle-active", "host": ["{{base_url}}"], "path": ["admin", "services", "{{service_id}}", "toggle-active"] }
+          }
+        },
+        {
+          "name": "Delete service (soft delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/services/{{service_id}}", "host": ["{{base_url}}"], "path": ["admin", "services", "{{service_id}}"] }
+          }
+        },
+        {
+          "name": "Create with bad data (expect 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/admin/services", "host": ["{{base_url}}"], "path": ["admin", "services"] },
+            "body": { "mode": "raw", "raw": "{\n  \"category_id\": 9999,\n  \"name\": \"\",\n  \"price\": -50\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Security checks",
+      "item": [
+        {
+          "name": "Admin route with NO token (expect 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('401 Unauthenticated', () => pm.response.to.have.status(401));"] }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/categories", "host": ["{{base_url}}"], "path": ["admin", "categories"] }
+          }
+        },
+        {
+          "name": "Admin route with PATIENT token (expect 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "console.log('Run \"Login as PATIENT\" first for this to be meaningful.');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/categories", "host": ["{{base_url}}"], "path": ["admin", "categories"] }
+          }
+        },
+        {
+          "name": "Profile with NO token (expect 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('401 Unauthenticated', () => pm.response.to.have.status(401));"] }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/profile", "host": ["{{base_url}}"], "path": ["profile"] }
+          }
+        }
+      ]
+    }
+  ]
+}
