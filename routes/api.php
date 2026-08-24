@@ -1,18 +1,30 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AdminCategoryController;
+use App\Http\Controllers\Api\V1\AdminServiceController;
 use App\Http\Controllers\Api\V1\AuthController;
-use App\Http\Controllers\Api\V2\ProfileController;
-use App\Http\Controllers\Api\V2\CatalogController;
-use App\Http\Controllers\Api\V2\AdminServiceController;
-use App\Http\Controllers\Api\V2\AdminCategoryController;
+use App\Http\Controllers\Api\V1\CatalogController;
+use App\Http\Controllers\Api\V1\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| API V1 Routes (Sprint 1)
+| API V1 Routes
 |--------------------------------------------------------------------------
+|
+| Everything the platform exposes lives under v1. Sprint 2 originally shipped
+| under a separate v2 prefix, but adding new resources is not a breaking change
+| for existing clients, so the catalog, profile and admin routes were folded
+| back in here alongside auth.
+|
 */
 Route::prefix('v1')->name('api.v1.')->group(function (): void {
+
+    /*
+    |----------------------------------------------------------------------
+    | Authentication (Sprint 1)
+    |----------------------------------------------------------------------
+    */
     Route::prefix('auth')->name('auth.')->group(function (): void {
         Route::middleware('throttle:auth')->group(function (): void {
             Route::post('/register', [AuthController::class, 'register'])->name('register');
@@ -27,36 +39,39 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::post('/logout-all', [AuthController::class, 'logoutAll'])->name('logout-all');
         });
     });
-});
 
-/*
-|--------------------------------------------------------------------------
-| API V2 Routes (Sprint 2)
-|--------------------------------------------------------------------------
-*/
-Route::prefix('v2')->group(function () {
+    /*
+    |----------------------------------------------------------------------
+    | Public catalog (US-005)
+    |----------------------------------------------------------------------
+    */
+    Route::get('/categories', [CatalogController::class, 'categories'])->name('categories.index');
+    Route::get('/services', [CatalogController::class, 'services'])->name('services.index');
+    Route::get('/services/{service}', [CatalogController::class, 'show'])->name('services.show');
 
-    // 1. Public Catalog Routes (US-005)
-    Route::get('/categories', [CatalogController::class, 'index']);
-    Route::get('/services', [CatalogController::class, 'services']);
-    Route::get('/services/{service}', [CatalogController::class, 'show']);
-
-    // 2. Authenticated Patient Routes (US-006)
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::get('/profile', [ProfileController::class, 'index']);
-        Route::put('/profile', [ProfileController::class, 'update']);
+    /*
+    |----------------------------------------------------------------------
+    | Patient profile (US-006)
+    |----------------------------------------------------------------------
+    */
+    Route::middleware('auth:sanctum')->group(function (): void {
+        Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+        Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     });
 
-    // 3. Admin Management Routes (US-007 & US-008)
-    Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
-        
-        // استخدام apiResource للتصنيفات
-        Route::apiResource('categories', AdminCategoryController::class);
+    /*
+    |----------------------------------------------------------------------
+    | Admin portal (US-007, US-008)
+    |----------------------------------------------------------------------
+    */
+    Route::middleware(['auth:sanctum', 'role:admin'])
+        ->prefix('admin')
+        ->name('admin.')
+        ->group(function (): void {
+            Route::apiResource('categories', AdminCategoryController::class);
 
-        // الخدمات والأسعار
-        Route::get('/admin-services-categories', [AdminServiceController::class, 'categories']);
-        Route::post('/services', [AdminServiceController::class, 'storeService']);
-        Route::put('/services/{service}', [AdminServiceController::class, 'updateService']);
-        Route::delete('/services/{service}', [AdminServiceController::class, 'destroyService']);
-    });
+            Route::post('/services/{service}/toggle-active', [AdminServiceController::class, 'toggleActive'])
+                ->name('services.toggle-active');
+            Route::apiResource('services', AdminServiceController::class);
+        });
 });
