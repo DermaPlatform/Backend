@@ -28,6 +28,16 @@ class ServiceFactory extends Factory
     }
 
     /**
+     * A service that already carries an uploaded image.
+     */
+    public function withImage(): static
+    {
+        return $this->state(fn (): array => [
+            'image_path' => 'services/'.fake()->uuid().'.jpg',
+        ]);
+    }
+
+    /**
      * A service hidden from the public catalog but still on record.
      */
     public function inactive(): static

@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreServiceRequest;
+use App\Http\Requests\Api\V1\UpdateServiceImageRequest;
 use App\Http\Requests\Api\V1\UpdateServiceRequest;
 use App\Http\Resources\Api\V1\ServiceResource;
 use App\Models\Service;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Dermatology service and pricing management for the admin portal
@@ -44,7 +47,13 @@ class AdminServiceController extends Controller
 
     public function store(StoreServiceRequest $request): JsonResponse
     {
-        $service = Service::create($request->validated());
+        $attributes = $request->safe()->except('image');
+
+        if ($request->hasFile('image')) {
+            $attributes['image_path'] = $this->storeImage($request->file('image'));
+        }
+
+        $service = Service::create($attributes);
 
         return response()->json([
             'message' => 'Service created successfully.',
@@ -63,6 +72,39 @@ class AdminServiceController extends Controller
 
         return response()->json([
             'message' => 'Service updated successfully.',
+            'data' => new ServiceResource($service->load('category')),
+        ]);
+    }
+
+    /**
+     * Upload or replace the service image. This is a POST rather than part of
+     * `update` because PHP does not parse multipart bodies on PUT requests.
+     */
+    public function updateImage(UpdateServiceImageRequest $request, Service $service): JsonResponse
+    {
+        $previousPath = $service->image_path;
+
+        $service->update(['image_path' => $this->storeImage($request->file('image'))]);
+
+        if ($previousPath !== null) {
+            Storage::disk(config('nadara.uploads.disk'))->delete($previousPath);
+        }
+
+        return response()->json([
+            'message' => 'Service image updated successfully.',
+            'data' => new ServiceResource($service->load('category')),
+        ]);
+    }
+
+    /**
+     * Remove the service image and delete the stored file.
+     */
+    public function destroyImage(Service $service): JsonResponse
+    {
+        $service->clearImage();
+
+        return response()->json([
+            'message' => 'Service image removed successfully.',
             'data' => new ServiceResource($service->load('category')),
         ]);
     }
@@ -94,5 +136,16 @@ class AdminServiceController extends Controller
                 : 'Service deactivated successfully.',
             'data' => new ServiceResource($service->load('category')),
         ]);
+    }
+
+    /**
+     * Persist an uploaded image on the public disk and return its stored path.
+     */
+    private function storeImage(UploadedFile $image): string
+    {
+        return $image->store(
+            config('nadara.uploads.service_image_directory'),
+            config('nadara.uploads.disk')
+        );
     }
 }

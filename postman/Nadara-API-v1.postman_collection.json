@@ -433,6 +433,26 @@
           }
         },
         {
+          "name": "Upload / replace service image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/services/{{service_id}}/image", "host": ["{{base_url}}"], "path": ["admin", "services", "{{service_id}}", "image"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "image", "type": "file", "src": [], "description": "jpg, jpeg, png or webp, max 2 MB" }]
+            }
+          }
+        },
+        {
+          "name": "Remove service image",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/admin/services/{{service_id}}/image", "host": ["{{base_url}}"], "path": ["admin", "services", "{{service_id}}", "image"] }
+          }
+        },
+        {
           "name": "Toggle active (deactivate / reactivate)",
           "request": {
             "method": "POST",

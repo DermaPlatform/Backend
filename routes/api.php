@@ -72,6 +72,11 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
 
             Route::post('/services/{service}/toggle-active', [AdminServiceController::class, 'toggleActive'])
                 ->name('services.toggle-active');
+
+            Route::post('/services/{service}/image', [AdminServiceController::class, 'updateImage'])
+                ->name('services.image.update');
+            Route::delete('/services/{service}/image', [AdminServiceController::class, 'destroyImage'])
+                ->name('services.image.destroy');
             Route::apiResource('services', AdminServiceController::class);
         });
 });

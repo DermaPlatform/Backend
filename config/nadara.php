@@ -34,6 +34,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Uploads
+    |--------------------------------------------------------------------------
+    |
+    | disk: filesystem disk that holds publicly reachable uploads such as
+    | service images. It must be linked with `php artisan storage:link`.
+    |
+    | image_max_kb / image_mimes: validation limits applied to every uploaded
+    | image.
+    |
+    */
+
+    'uploads' => [
+        'disk' => env('NADARA_UPLOAD_DISK', 'public'),
+        'service_image_directory' => 'services',
+        'image_max_kb' => 2048,
+        'image_mimes' => ['jpg', 'jpeg', 'png', 'webp'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Pagination
     |--------------------------------------------------------------------------
     */

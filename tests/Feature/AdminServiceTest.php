@@ -3,6 +3,8 @@
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * US-007 / US-008 — service and pricing management by the admin.
@@ -142,4 +144,105 @@ it('keeps the deleted service row on record for past bookings', function (): voi
 
     $this->assertDatabaseHas('services', ['id' => $service->id]);
     expect(Service::withTrashed()->find($service->id))->not->toBeNull();
+});
+
+it('creates a service with an uploaded image', function (): void {
+    Storage::fake(config('nadara.uploads.disk'));
+
+    $response = $this->actingAs($this->admin)
+        ->post(route('api.v1.admin.services.store'), [
+            'category_id' => $this->category->id,
+            'name' => 'Laser Session',
+            'price' => 120,
+            'image' => UploadedFile::fake()->image('laser.jpg'),
+        ])
+        ->assertCreated();
+
+    $service = Service::firstWhere('name', 'Laser Session');
+
+    expect($service->image_path)->not->toBeNull();
+    Storage::disk(config('nadara.uploads.disk'))->assertExists($service->image_path);
+    expect($response->json('data.image_url'))->toContain($service->image_path);
+});
+
+it('creates a service without an image', function (): void {
+    $this->actingAs($this->admin)
+        ->postJson(route('api.v1.admin.services.store'), [
+            'category_id' => $this->category->id,
+            'name' => 'Consultation Only',
+            'price' => 30,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.image_url', null);
+});
+
+it('replaces the service image and deletes the previous file', function (): void {
+    Storage::fake(config('nadara.uploads.disk'));
+
+    $service = Service::factory()->for($this->category, 'category')->create();
+
+    $this->actingAs($this->admin)
+        ->post(route('api.v1.admin.services.image.update', $service), [
+            'image' => UploadedFile::fake()->image('first.jpg'),
+        ])
+        ->assertOk();
+
+    $firstPath = $service->refresh()->image_path;
+
+    $this->actingAs($this->admin)
+        ->post(route('api.v1.admin.services.image.update', $service), [
+            'image' => UploadedFile::fake()->image('second.png'),
+        ])
+        ->assertOk();
+
+    $secondPath = $service->refresh()->image_path;
+
+    expect($secondPath)->not->toBe($firstPath);
+    Storage::disk(config('nadara.uploads.disk'))->assertMissing($firstPath);
+    Storage::disk(config('nadara.uploads.disk'))->assertExists($secondPath);
+});
+
+it('removes the service image', function (): void {
+    Storage::fake(config('nadara.uploads.disk'));
+
+    $service = Service::factory()->for($this->category, 'category')->create();
+
+    $this->actingAs($this->admin)
+        ->post(route('api.v1.admin.services.image.update', $service), [
+            'image' => UploadedFile::fake()->image('gone.jpg'),
+        ])
+        ->assertOk();
+
+    $path = $service->refresh()->image_path;
+
+    $this->actingAs($this->admin)
+        ->deleteJson(route('api.v1.admin.services.image.destroy', $service))
+        ->assertOk()
+        ->assertJsonPath('data.image_url', null);
+
+    expect($service->refresh()->image_path)->toBeNull();
+    Storage::disk(config('nadara.uploads.disk'))->assertMissing($path);
+});
+
+it('rejects an invalid service image', function (UploadedFile $file): void {
+    Storage::fake(config('nadara.uploads.disk'));
+
+    $service = Service::factory()->for($this->category, 'category')->create();
+
+    $this->actingAs($this->admin)
+        ->post(route('api.v1.admin.services.image.update', $service), ['image' => $file])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('image');
+})->with([
+    'not an image' => fn () => UploadedFile::fake()->create('report.pdf', 100, 'application/pdf'),
+    'unsupported type' => fn () => UploadedFile::fake()->image('scan.gif'),
+    'too large' => fn () => UploadedFile::fake()->image('huge.jpg')->size(config('nadara.uploads.image_max_kb') + 1),
+]);
+
+it('exposes the service image in the public catalog', function (): void {
+    $service = Service::factory()->for($this->category, 'category')->withImage()->create();
+
+    $this->getJson(route('api.v1.services.show', $service))
+        ->assertOk()
+        ->assertJsonPath('data.image_url', config('app.url').'/storage/'.$service->image_path);
 });

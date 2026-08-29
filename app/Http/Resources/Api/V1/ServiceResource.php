@@ -21,6 +21,7 @@ class ServiceResource extends JsonResource
             'name' => $this->name,
             'price' => $this->price,
             'description' => $this->description,
+            'image_url' => $this->image_url,
             'is_active' => $this->is_active,
             'category' => new ServiceCategoryResource($this->whenLoaded('category')),
             'created_at' => $this->created_at?->toIso8601String(),

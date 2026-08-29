@@ -31,6 +31,13 @@ class StoreServiceRequest extends FormRequest
             ],
             'description' => ['nullable', 'string'],
             'price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'image' => [
+                'sometimes',
+                'nullable',
+                'image',
+                'mimes:'.implode(',', config('nadara.uploads.image_mimes')),
+                'max:'.config('nadara.uploads.image_max_kb'),
+            ],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
