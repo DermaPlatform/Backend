@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Gender;
 use App\Models\User;
 
 /**
@@ -93,6 +94,78 @@ it('rejects an empty name', function (): void {
         ->putJson(route('api.v1.profile.update'), ['name' => ''])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('name');
+});
+
+it('returns the birth date, age and gender', function (): void {
+    $this->travelTo('2026-08-30');
+
+    $user = User::factory()->patient()->create([
+        'birth_date' => '1995-04-17',
+        'gender' => Gender::Female,
+    ]);
+
+    $this->actingAs($user)
+        ->getJson(route('api.v1.profile.show'))
+        ->assertOk()
+        ->assertJsonPath('data.birth_date', '1995-04-17')
+        ->assertJsonPath('data.age', 31)
+        ->assertJsonPath('data.gender', 'female');
+});
+
+it('updates the birth date and gender', function (): void {
+    $user = User::factory()->patient()->create([
+        'birth_date' => '1995-04-17',
+        'gender' => Gender::Female,
+    ]);
+
+    $this->actingAs($user)
+        ->putJson(route('api.v1.profile.update'), [
+            'birth_date' => '1990-01-05',
+            'gender' => 'male',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.birth_date', '1990-01-05')
+        ->assertJsonPath('data.gender', 'male');
+
+    expect($user->fresh())
+        ->birth_date->toDateString()->toBe('1990-01-05')
+        ->gender->toBe(Gender::Male);
+});
+
+it('rejects clearing the birth date or gender', function (string $field): void {
+    $user = User::factory()->patient()->create();
+
+    $this->actingAs($user)
+        ->putJson(route('api.v1.profile.update'), [$field => null])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors($field);
+})->with(['birth_date', 'gender']);
+
+it('rejects an invalid birth date or gender on update', function (array $payload, string $field): void {
+    $user = User::factory()->patient()->create();
+
+    $this->actingAs($user)
+        ->putJson(route('api.v1.profile.update'), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors($field);
+})->with([
+    'future birth date' => [fn () => ['birth_date' => now()->addYear()->toDateString()], 'birth_date'],
+    'unknown gender' => [['gender' => 'unknown'], 'gender'],
+]);
+
+it('leaves the birth date and gender untouched on a partial update', function (): void {
+    $user = User::factory()->patient()->create([
+        'birth_date' => '1995-04-17',
+        'gender' => Gender::Female,
+    ]);
+
+    $this->actingAs($user)
+        ->putJson(route('api.v1.profile.update'), ['name' => 'Only The Name'])
+        ->assertOk();
+
+    expect($user->fresh())
+        ->birth_date->toDateString()->toBe('1995-04-17')
+        ->gender->toBe(Gender::Female);
 });
 
 it('does not allow changing the role through the profile endpoint', function (): void {

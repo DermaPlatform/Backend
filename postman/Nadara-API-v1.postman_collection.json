@@ -51,7 +51,7 @@
             "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"New Patient\",\n  \"email\": \"new.patient@example.com\",\n  \"phone\": \"0591234567\",\n  \"password\": \"Password123!\",\n  \"password_confirmation\": \"Password123!\",\n  \"device_name\": \"postman\"\n}"
+              "raw": "{\n  \"name\": \"New Patient\",\n  \"email\": \"new.patient@example.com\",\n  \"phone\": \"0591234567\",\n  \"birth_date\": \"1995-04-17\",\n  \"gender\": \"female\",\n  \"password\": \"Password123!\",\n  \"password_confirmation\": \"Password123!\",\n  \"device_name\": \"postman\"\n}"
             }
           }
         },

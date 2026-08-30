@@ -3,8 +3,10 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\Gender;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -24,6 +26,8 @@ class User extends Authenticatable
         'name',
         'email',
         'phone',
+        'birth_date',
+        'gender',
         'password',
         'role',
         'specialty',
@@ -80,6 +84,15 @@ class User extends Authenticatable
     }
 
     /**
+     * Age in whole years, or null while no birth date is on file. Doctors read
+     * this instead of recomputing it on every screen.
+     */
+    protected function age(): Attribute
+    {
+        return Attribute::get(fn (): ?int => $this->birth_date?->age);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -89,7 +102,9 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'birth_date' => 'date',
             'role' => UserRole::class,
+            'gender' => Gender::class,
         ];
     }
 }

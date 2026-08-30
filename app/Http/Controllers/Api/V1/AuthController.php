@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\Gender;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\ForgotPasswordRequest;
@@ -28,6 +29,8 @@ class AuthController extends Controller
             'name' => $request->string('name')->value(),
             'email' => $request->string('email')->value(),
             'phone' => $request->string('phone')->value(),
+            'birth_date' => $request->date('birth_date'),
+            'gender' => Gender::from($request->string('gender')->value()),
             'password' => $request->string('password')->value(),
             'role' => UserRole::Patient,
         ]);
@@ -146,7 +149,7 @@ class AuthController extends Controller
         $token = $user->createToken($deviceName);
 
         return [
-            'user' => new UserResource($user),
+            'user' => (new UserResource($user))->asOwner(),
             'token' => $token->plainTextToken,
             'token_type' => 'Bearer',
             'expires_at' => $token->accessToken->expires_at?->toIso8601String(),

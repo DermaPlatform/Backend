@@ -126,6 +126,8 @@ POST /api/v1/auth/register
 | `name` | ✅ | نص، 2–255 حرف |
 | `email` | ✅ | إيميل صالح، فريد، **بيتحوّل لحروف صغيرة تلقائياً** |
 | `phone` | ✅ | `+` اختيارية ثم أرقام/مسافات/`-`/`()`، 7–20 خانة، فريد |
+| `birth_date` | ✅ | `YYYY-MM-DD`، قبل اليوم، وعمر أقل من 120 سنة |
+| `gender` | ✅ | `male` أو `female` (غير حسّاس لحالة الأحرف) |
 | `password` | ✅ | 8 أحرف على الأقل (شوف §6) |
 | `password_confirmation` | ✅ | مطابق لـ `password` |
 | `device_name` | ❌ | اسم الجهاز، الافتراضي `"api"` |
@@ -135,6 +137,8 @@ POST /api/v1/auth/register
   "name": "سارة أحمد",
   "email": "sara@example.com",
   "phone": "+966500000001",
+  "birth_date": "1995-04-17",
+  "gender": "female",
   "password": "password123",
   "password_confirmation": "password123",
   "device_name": "iphone-15"
@@ -152,6 +156,9 @@ POST /api/v1/auth/register
       "name": "سارة أحمد",
       "email": "sara@example.com",
       "phone": "+966500000001",
+      "birth_date": "1995-04-17",
+      "age": 31,
+      "gender": "female",
       "role": "patient",
       "email_verified": false,
       "created_at": "2026-08-18T10:30:00+00:00"
@@ -221,6 +228,9 @@ GET /api/v1/auth/me
     "name": "سارة أحمد",
     "email": "sara@example.com",
     "phone": "+966500000001",
+    "birth_date": "1995-04-17",
+    "age": 31,
+    "gender": "female",
     "role": "patient",
     "email_verified": false,
     "created_at": "2026-08-18T10:30:00+00:00"
@@ -229,6 +239,8 @@ GET /api/v1/auth/me
 ```
 
 استخدمه عند إقلاع التطبيق للتحقق إن التوكن المخزّن لسا صالح واسترجاع بيانات المستخدم.
+
+`birth_date` و `age` و `gender` بيانات سريرية: بتظهر لصاحب الحساب وللدكتور والأدمن فقط، وبتنحذف من الرد لأي مستخدم تاني.
 
 ---
 
