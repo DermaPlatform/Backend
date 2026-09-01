@@ -73,4 +73,11 @@ class UserFactory extends Factory
             'specialty' => null,
         ]);
     }
+
+    public function withImage(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'image_path' => 'users/'.fake()->uuid().'.jpg',
+        ]);
+    }
 }

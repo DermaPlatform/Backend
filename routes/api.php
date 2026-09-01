@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Route;
 | back in here alongside auth.
 |
 */
+
 Route::prefix('v1')->name('api.v1.')->group(function (): void {
 
     /*
@@ -57,6 +58,8 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
         Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+        Route::post('/profile/image', [ProfileController::class, 'updateImage'])->name('profile.image.update');
+        Route::delete('/profile/image', [ProfileController::class, 'destroyImage'])->name('profile.image.destroy');
     });
 
     /*

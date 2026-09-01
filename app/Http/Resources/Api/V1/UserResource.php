@@ -41,6 +41,7 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
+            'image_url' => $this->image_url,
             'birth_date' => $this->when($showsClinicalDetails, fn (): ?string => $this->birth_date?->toDateString()),
             'age' => $this->when($showsClinicalDetails, fn (): ?int => $this->age),
             'gender' => $this->when($showsClinicalDetails, fn (): ?string => $this->gender?->value),

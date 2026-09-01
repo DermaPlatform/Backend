@@ -48,6 +48,7 @@ return [
     'uploads' => [
         'disk' => env('NADARA_UPLOAD_DISK', 'public'),
         'service_image_directory' => 'services',
+        'user_image_directory' => 'users',
         'image_max_kb' => 2048,
         'image_mimes' => ['jpg', 'jpeg', 'png', 'webp'],
     ],
