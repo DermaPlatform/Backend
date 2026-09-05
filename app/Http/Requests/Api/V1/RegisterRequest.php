@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Enums\Gender;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class RegisterRequest extends FormRequest
@@ -21,13 +23,21 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'min:2', 'max:255'],
             'email' => ['required', 'string', 'email:rfc', 'max:255', 'unique:users,email'],
             'phone' => ['required', 'string', 'regex:/^\+?[0-9\s\-()]{7,20}$/', 'max:20', 'unique:users,phone'],
+            'birth_date' => [
+                'required',
+                'date_format:Y-m-d',
+                'before:today',
+                'after:'.now()->subYears(config('nadara.patients.max_age'))->toDateString(),
+            ],
+            'gender' => ['required', Rule::enum(Gender::class)],
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
             'device_name' => ['sometimes', 'string', 'max:255'],
         ];
     }
 
     /**
-     * Normalize the email so lookups and the unique rule stay case-insensitive.
+     * Normalize the email so lookups and the unique rule stay case-insensitive,
+     * and the gender so it matches the enum regardless of casing.
      */
     protected function prepareForValidation(): void
     {
@@ -35,6 +45,7 @@ class RegisterRequest extends FormRequest
             'email' => is_string($this->input('email')) ? mb_strtolower(trim($this->input('email'))) : null,
             'name' => is_string($this->input('name')) ? trim($this->input('name')) : null,
             'phone' => is_string($this->input('phone')) ? trim($this->input('phone')) : null,
+            'gender' => is_string($this->input('gender')) ? mb_strtolower(trim($this->input('gender'))) : null,
         ], static fn (?string $value): bool => $value !== null));
     }
 
