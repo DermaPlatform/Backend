@@ -113,9 +113,24 @@
 
 | القيد | الآن | ماذا يحدث فعلياً |
 |---|---|---|
+| `appointments.patient_id` | `cascadeOnDelete` | حذف مريض يمحو تاريخ مواعيده ومعه لقطة السعر — تقرير الدخل يتغيّر بأثر رجعي |
+| `appointments.doctor_id` | `nullOnDelete` **ويقبل NULL** | حذف طبيب يُيتّم مواعيده. والفلترة `where('doctor_id', $x)` تتحوّل في Laravel إلى `IS NULL` حين يكون `$x` فارغاً، فيرى السكرتير اليتيم مواعيد كل الأطباء المحذوفين — تسريب صامت |
 | `payments.patient_id` | `cascadeOnDelete` | حذف مريض يمحو سجله المالي — الدخل يختفي من التقارير بأثر رجعي |
 | `medical_notes.patient_id` · `doctor_id` | `cascadeOnDelete` | حذف مستخدم يمحو السجل الطبي — الاحتفاظ به التزام مهني |
 | `consultation_messages.sender_id` | `cascadeOnDelete` | حذف طبيب يمحو رسائله من محادثة قائمة، فتصير نصف حوار |
+
+**الإصلاح:** كلها تصير `restrictOnDelete`، ويصير `appointments.doctor_id` غير قابل لـ NULL.
+
+**الطبقة الثانية — التعطيل لا الحذف:** يُضاف العمود `is_active` على `users` بقيمة افتراضية `true`،
+ويصير تعطيل الحساب هو المسار الطبيعي بدل حذفه. القيود أعلاه هي شبكة الأمان تحته لا بديله،
+لأن `is_active` اتفاق على مستوى التطبيق لا تعرفه قاعدة البيانات، ويتخطّاه `forceDelete()`
+أو أي `DELETE` يدوي. ومع `restrictOnDelete` يبقى الحذف الحقيقي متاحاً وينجح **فقط** حين لا
+تكون هناك سجلات مرتبطة — أي أن حساباً مكرراً أُنشئ بالخطأ يُمحى، وطبيباً له مواعيد يُرفض محوه.
+
+**لا `soft delete` على `users`:** يبقى `deleted_at` على `services` و `service_categories` فقط.
+إضافته إلى `users` تحجز البريد والهاتف الفريدين فيتعذّر تسجيل الحساب ثانية، وتفرض `withTrashed()`
+على كل استعلام تاريخي في السبرنتات 4 و5 و6، وتُرجع سجلاً طبياً طبيبه `null` — وهو سجل مكسور
+لا سجل محذوف.
 
 **تفصيل 0.5.5 — الحالات الحالية لا تطابق آلات الحالة أدناه، وبأسماء مختلفة لا أضيق فقط:**
 
@@ -129,8 +144,9 @@
 ### 0.5.ب — migrations إعادة التموضع
 
 تُنفَّذ بنفس الدفعة لأنها تمسّ الجداول ذاتها (التفصيل في قسم **قاعدة البيانات** أدناه):
-الدور الرابع وأعمدته على `users` · جدول `doctor_service` بالسعر والمدة · `services.price`
-تصير nullable · لقطة السعر على `appointments`.
+الدور الرابع و`doctor_id` و`is_active` على `users` · **جدول `doctor_profiles` الجديد** ينتقل
+إليه `specialty` · جدول `doctor_service` بالسعر والمدة · `services.price` تصير nullable ·
+لقطة السعر على `appointments`.
 
 ### لماذا الآن لا لاحقاً
 
@@ -139,9 +155,17 @@
 
 ### بوابة القبول
 
-`php artisan test --compact` → **134 اختبار تبقى خضراء** (المرحلة لا تمسّ أي مسار مبني)
+`php artisan test --compact` → **134 اختبار يبقى عددها كما هو وكلها خضراء**
 · `Appointment::factory()->create()` تنجح · `Payment::first()->amount` رقم
-· `ConsultationMessage::first()->created_at` كائن `Carbon`.
+· `ConsultationMessage::first()->created_at` كائن `Carbon`
+· حذف مستخدم له دفعة أو موعد → **يُرفَض** لا يُمحى.
+
+**استثناء واحد يجب توقّعه:** نقل `specialty` إلى `doctor_profiles` يكسر أربعة مواضع قائمة،
+وهي المواضع الوحيدة التي تذكره في المشروع كله:
+`app/Http/Resources/Api/V1/UserResource.php` (السطر 49) · `database/factories/UserFactory.php`
+· `database/seeders/DatabaseSeeder.php` · `tests/Feature/Auth/TokenAuthenticationTest.php`.
+هذه تُعدَّل ضمن نفس الدفعة، ولا يُعدّ تعديلها خروجاً عن البوابة. العدد يبقى 134 لأننا لا نحذف
+اختباراً ولا نضيف واحداً — نصلح مرجعاً تغيّر مكانه.
 
 ---
 
@@ -171,7 +195,8 @@
 | `consultations` | `symptoms`, `price`, `submitted_at`, `replied_at` | US-012 |
 | `medical_notes` | **`patient_id` و `doctor_id` → `restrictOnDelete`** | البند 0.5.4 — السجل الطبي لا يُمحى بحذف حساب |
 | `consultation_messages` | **`sender_id` → `restrictOnDelete`** | البند 0.5.4 |
-| `users` | فهرس على `name` و `phone`؛ **`role` يقبل `secretary`**؛ **`doctor_id`** (nullable FK)؛ **`accepts_appointments`** (default `true`)؛ **`accepts_online_consultations`** (default `false`)؛ **`subscription_status`** + **`subscription_ends_at`** | بحث US-016 · الدور الرابع · الاشتراك |
+| `users` | فهرس على `name` و `phone`؛ **`role` يقبل `secretary`**؛ **`doctor_id`** (nullable FK — رابط السكرتير بطبيبه)؛ **`is_active`** (default `true`)؛ **ويخرج منه `specialty` إلى `doctor_profiles`** | بحث US-016 · الدور الرابع · التعطيل بدل الحذف |
+| `appointments` (مفاتيح) | **`patient_id` → `restrictOnDelete`**؛ **`doctor_id` → `restrictOnDelete` وغير قابل لـ NULL** | البند 0.5.4 — تاريخ المواعيد يحمل لقطة السعر، والـ NULL يسرّب |
 
 **قواعد حاكمة على الجداول أعلاه:**
 
@@ -184,6 +209,19 @@
 4. **الاشتراك يُنفَّذ بالوصول لا بالتحصيل:** لا بوابة دفع. انتهاء الاشتراك يوقف **الجديد فقط** —
    الطبيب يختفي من الكتالوج ولا يقبل حجوزات أو استشارات جديدة، بينما المواعيد المحجوزة
    والمدفوعة لا تُلغى، وحساب السكرتير لا يُقفل، والبيانات لا تُمسح. مهلة سماح 7 أيام.
+5. **كل المفاتيح تبقى على `users.id`:** `doctor_profiles` امتداد للحساب لا كيان مستقل، ولذلك
+   تبقى `appointments.doctor_id` و`doctor_service.doctor_id` و`doctor_schedules.doctor_id`
+   مؤشِّرةً على `users.id` كما هي. إعادة توجيهها إلى مفتاح جديد تعني تعديل جداول فيها بيانات
+   فعلاً بلا مقابل، وتفتح باب الخلط بين رقم الحساب ورقم صفّ الطبيب.
+6. **صفّ البروفايل يُنشأ صراحةً:** يُكتب في نفس الـ transaction التي تنشئ الطبيب (US-025)،
+   وفي حالة `doctor()` بـ `UserFactory`. **لا observers ولا model events** — تُخفي السلوك
+   وتتصرّف بشكل مختلف في السيدرز والاختبارات. وطبيبٌ بلا صفّ بروفايل يسقط من الكتالوج
+   لأن الاستعلام يربط الجدولين، أي أنه يختفي بدل أن يُوقع الصفحة.
+7. **السكرتير يبقى على `users.doctor_id`:** حقل واحد يُقرأ في كل طلب `/staff/*`، وجدول
+   مستقل له يعني ربطاً إضافياً في كل طلب مقابل عمود واحد. وقاعدة البيانات لا تستطيع اشتراط
+   أن يكون المشار إليه طبيباً، فيُتحقَّق من ذلك في الـ FormRequest ويُثبَّت باختبار.
+   **وسكرتير بلا `doctor_id` يُردّ عليه بـ 403 من الـ Policy لا بقائمة فارغة** — القائمة
+   الفارغة تُقرأ كعطل في النظام.
 
 ### جداول جديدة
 
@@ -191,6 +229,7 @@
 |---|---|---|
 | `doctor_schedules` | دوام أسبوعي لكل طبيب | US-010 |
 | `schedule_exceptions` | إجازات وأيام استثنائية | US-010 |
+| `doctor_profiles` | امتداد واحد-لواحد لحساب الطبيب. مفتاحه الأساسي `user_id` نفسه، فيضمن صفاً واحداً لكل طبيب بلا قيد إضافي. يحمل `specialty` (منقولة من `users`) و `accepts_appointments` و `accepts_online_consultations` و `subscription_status` و `subscription_ends_at` | إعادة التموضع · US-028 |
 | `doctor_service` | أي طبيب يقدّم أي خدمة — **ومعها `price` و `duration_minutes` و `is_active`**، فريد على الزوج | US-009 |
 | `attachments` | صور الحالة الجلدية (polymorphic) | US-012 |
 | `settings` | رسوم الاستشارة، نافذة الإلغاء، مهلة الحجز | US-008, US-012 |
@@ -305,6 +344,10 @@
 `[Doctor, Admin]` في `UserResource::viewerMaySeeClinicalDetails()` — تاريخ الميلاد والجنس
 بيانات سريرية — وممنوع عليه الملاحظات الطبية ومرفقات الاستشارات.
 يغطي ذلك `tests/Feature/UserResourceVisibilityTest.php` الموجود.
+
+**تقرير الدخل خارج نطاق السكرتير:** يبقى `/doctor/income` (US-027) محصوراً بـ `role:doctor`.
+الإيصال الفردي عملٌ تشغيلي يخصّ السكرتير، أما المجموع الشهري فأداءٌ تجاري يخصّ صاحب العيادة،
+ومن أراد مشاركته مع سكرتيرته فعل ذلك بنفسه. **قرار مؤقت يُراجَع بعد الجلسة مع الأطباء.**
 
 ### إدارة المنصة — `role:admin` تحت `/api/v1/admin/*` (يبقى كما هو)
 
@@ -423,7 +466,7 @@ POST /doctor/consultations/{id}/reply     { message }
 GET  /doctor/patients/{id}/medical-notes
 POST /doctor/medical-notes                { patient_id, appointment_id, notes }
 PUT  /doctor/medical-notes/{id}
-GET  /doctor/income                       ?from= &to=                     ← US-027
+GET  /doctor/income                       ?from= &to=                     ← US-027 · الطبيب وحده
 apiResource /doctor/services              { service_id, price, duration_minutes, is_active }
 PUT  /doctor/preferences                  { accepts_appointments, accepts_online_consultations }
 ```
@@ -464,7 +507,7 @@ php artisan migrate:fresh --seed           # المخطط يُبنى من الص
 | السبرنت | التحقق |
 |---|---|
 | **0** ✅ | كل راوتس Sprint 2 تعمل — لا 500 · حذف تصنيف لا يمسح خدماته |
-| **0.5** | 134 اختبار تبقى خضراء · `Appointment::factory()` تنجح · `Payment::first()->amount` رقم · حذف مستخدم له دفعة → يُرفَض لا يُمحى |
+| **0.5** | 134 اختبار خضراء (مع تعديل المواضع الأربعة التي تذكر `specialty`) · `Appointment::factory()` تنجح · `Payment::first()->amount` رقم · حذف مستخدم له دفعة أو موعد → يُرفَض لا يُمحى · طبيب `is_active = false` لا يظهر في الكتالوج |
 | **3** | طلبا حجز متوازيان لنفس الفترة → واحد ينجح والثاني 409 · انتهاء المهلة يحرّر الفترة · `appointments.price` = سعر الطبيب لحظة الحجز لا سعره الحالي |
 | **4** | الموافقة ترفض إن لم يُتحقق من الدفع · تحميل إيصال بتوكن مريض → 403 · سكرتير يفتح موعد طبيب آخر → 403 · سكرتير يطلب `birth_date` مريض → الحقل غائب |
 | **5** | الطبيب لا يرى مواعيد غير مدفوعة · طبيب آخر يقرأ ملاحظة → 403 · تعديل سعر الطبيب لا يغيّر تقرير دخل شهر مضى |
