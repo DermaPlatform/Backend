@@ -2,8 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Enums\SubscriptionStatus;
+use App\Models\DoctorSchedule;
 use App\Models\Service;
 use App\Models\ServiceCategory;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 
 /**
@@ -54,6 +57,153 @@ class CatalogSeeder extends Seeder
                     ]
                 );
             }
+        }
+
+        $this->seedDoctors();
+    }
+
+    private function seedDoctors(): void
+    {
+        $generalExamination = Service::query()
+            ->where('name', 'General Skin Examination')
+            ->firstOrFail();
+
+        $acneConsultation = Service::query()
+            ->where('name', 'Acne Treatment Consultation')
+            ->firstOrFail();
+
+        $moleCheck = Service::query()
+            ->where('name', 'Mole & Lesion Check')
+            ->firstOrFail();
+
+        $layla = User::query()
+            ->where('email', 'doctor@nadara.test')
+            ->firstOrFail();
+
+        $omar = User::factory()->doctor()->create([
+            'name' => 'Dr. Omar Haddad',
+            'email' => 'omar@nadara.test',
+            'phone' => '0590000004',
+        ]);
+
+        $samir = User::factory()->doctor()->create([
+            'name' => 'Dr. Samir Nasser',
+            'email' => 'samir@nadara.test',
+            'phone' => '0590000005',
+            'is_active' => false,
+        ]);
+
+        $noor = User::factory()->doctor()->create([
+            'name' => 'Dr. Noor Saleh',
+            'email' => 'noor@nadara.test',
+            'phone' => '0590000006',
+        ]);
+
+        $this->configureDoctor(
+            $layla,
+            specialty: 'Dermatology',
+            acceptsOnlineConsultations: true,
+            subscriptionStatus: SubscriptionStatus::Active,
+            subscriptionEndsAt: now()->addYear(),
+            services: [
+                $generalExamination->id => [
+                    'price' => 60.00,
+                    'duration_minutes' => 30,
+                    'is_active' => true,
+                ],
+                $acneConsultation->id => [
+                    'price' => 75.00,
+                    'duration_minutes' => 45,
+                    'is_active' => true,
+                ],
+            ],
+        );
+
+        $this->configureDoctor(
+            $omar,
+            specialty: 'Cosmetic Dermatology',
+            acceptsOnlineConsultations: true,
+            subscriptionStatus: SubscriptionStatus::Active,
+            subscriptionEndsAt: now()->addYear(),
+            services: [
+                $generalExamination->id => [
+                    'price' => 85.00,
+                    'duration_minutes' => 45,
+                    'is_active' => true,
+                ],
+                $moleCheck->id => [
+                    'price' => 110.00,
+                    'duration_minutes' => 30,
+                    'is_active' => true,
+                ],
+            ],
+        );
+
+        $this->configureDoctor(
+            $samir,
+            specialty: 'Clinical Dermatology',
+            acceptsOnlineConsultations: false,
+            subscriptionStatus: SubscriptionStatus::Active,
+            subscriptionEndsAt: now()->addYear(),
+            services: [
+                $generalExamination->id => [
+                    'price' => 55.00,
+                    'duration_minutes' => 30,
+                    'is_active' => true,
+                ],
+            ],
+        );
+
+        $this->configureDoctor(
+            $noor,
+            specialty: 'Dermatology',
+            acceptsOnlineConsultations: true,
+            subscriptionStatus: SubscriptionStatus::Expired,
+            subscriptionEndsAt: now()->subDay(),
+            services: [
+                $generalExamination->id => [
+                    'price' => 65.00,
+                    'duration_minutes' => 30,
+                    'is_active' => true,
+                ],
+            ],
+        );
+    }
+
+    /**
+     * @param  array<int, array{price: float, duration_minutes: int, is_active: bool}>  $services
+     */
+    private function configureDoctor(
+        User $doctor,
+        string $specialty,
+        bool $acceptsOnlineConsultations,
+        SubscriptionStatus $subscriptionStatus,
+        \DateTimeInterface $subscriptionEndsAt,
+        array $services,
+    ): void {
+        $doctor->doctorProfile()->update([
+            'specialty' => $specialty,
+            'accepts_appointments' => true,
+            'accepts_online_consultations' => $acceptsOnlineConsultations,
+            'subscription_status' => $subscriptionStatus,
+            'subscription_ends_at' => $subscriptionEndsAt,
+        ]);
+
+        $doctor->offeredServices()->sync($services);
+
+        foreach (range(0, 4) as $weekday) {
+            DoctorSchedule::query()->updateOrCreate(
+                [
+                    'doctor_id' => $doctor->id,
+                    'weekday' => $weekday,
+                ],
+                [
+                    'starts_at' => '09:00:00',
+                    'ends_at' => '17:00:00',
+                    'slot_minutes' => 30,
+                    'is_active' => true,
+                ],
+            );
         }
     }
 }
