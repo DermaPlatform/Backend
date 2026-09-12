@@ -45,7 +45,7 @@ class User extends Authenticatable
      */
     protected function imageUrl(): Attribute
     {
-        return Attribute::get(fn(): ?string => $this->image_path === null
+        return Attribute::get(fn (): ?string => $this->image_path === null
             ? null
             : Storage::disk(config('nadara.uploads.disk'))->url($this->image_path));
     }
@@ -75,11 +75,37 @@ class User extends Authenticatable
     ];
 
     /**
+     * Column defaults mirrored onto the model.
+     *
+     * The database already defaults is_active to true, but a freshly created
+     * instance does not read it back, so authorization checks on the same
+     * request would see null and deny a brand new account.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_active' => true,
+    ];
+
+    /**
      * @return HasOne<DoctorProfile, $this>
      */
     public function doctorProfile(): HasOne
     {
         return $this->hasOne(DoctorProfile::class, 'user_id');
+    }
+
+    /**
+     * Whether this account is a doctor the public may currently book.
+     *
+     * Used to answer with a 404 rather than an empty calendar: a deactivated
+     * or lapsed doctor should read as absent, not as permanently unavailable.
+     */
+    public function isBookableDoctor(): bool
+    {
+        return $this->role === UserRole::Doctor
+            && $this->is_active
+            && $this->doctorProfile?->hasActiveSubscription() === true;
     }
 
     /**
@@ -137,7 +163,7 @@ class User extends Authenticatable
      */
     protected function age(): Attribute
     {
-        return Attribute::get(fn(): ?int => $this->birth_date?->age);
+        return Attribute::get(fn (): ?int => $this->birth_date?->age);
     }
 
     /**

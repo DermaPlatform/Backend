@@ -37,6 +37,23 @@ class DoctorProfile extends Model
     }
 
     /**
+     * Whether the doctor may still take new work.
+     *
+     * Trial covers the founding doctors, who run free with no time limit until
+     * the platform reaches an active patient base, so it never lapses on its
+     * own. Only a dated subscription can run out.
+     */
+    public function hasActiveSubscription(): bool
+    {
+        return match ($this->subscription_status) {
+            SubscriptionStatus::Trial => true,
+            SubscriptionStatus::Active => $this->subscription_ends_at === null
+                || $this->subscription_ends_at->isFuture(),
+            SubscriptionStatus::Expired => false,
+        };
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
