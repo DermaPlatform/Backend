@@ -8,7 +8,9 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvailabilityController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\ConsultationController;
+use App\Http\Controllers\Api\V1\DoctorController;
 use App\Http\Controllers\Api\V1\PaymentReviewController;
+use App\Http\Controllers\Api\V1\PrivateFileController;
 use App\Http\Controllers\Api\V1\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -76,6 +78,8 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     | before deciding whether registering is worth it.
     |
     */
+    Route::get('/doctors', [DoctorController::class, 'index'])->name('doctors.index');
+    Route::get('/doctors/{doctor}', [DoctorController::class, 'show'])->name('doctors.show');
     Route::get('/doctors/{doctor}/availability', AvailabilityController::class)->name('doctors.availability');
 
     /*
@@ -91,6 +95,8 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             ->name('appointments.cancel');
         Route::post('/appointments/{appointment}/payment-receipt', [AppointmentReceiptController::class, 'store'])
             ->name('appointments.receipt.store');
+        Route::get('/appointments/{appointment}/payment-receipt', [PrivateFileController::class, 'receipt'])
+            ->name('appointments.receipt.show');
 
         Route::get('/consultations', [ConsultationController::class, 'index'])->name('consultations.index');
         Route::post('/consultations', [ConsultationController::class, 'store'])->name('consultations.store');
@@ -100,6 +106,10 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             ->name('consultations.receipt.store');
         Route::post('/consultations/{consultation}/messages', [ConsultationController::class, 'storeMessage'])
             ->name('consultations.messages.store');
+        Route::get(
+            '/consultations/{consultation}/attachments/{attachment}',
+            [PrivateFileController::class, 'consultationAttachment']
+        )->name('consultations.attachments.show');
 
         /*
          * Receipt review is gated by the policy rather than by a role in the

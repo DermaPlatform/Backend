@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\Attachment;
+use App\Models\Consultation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -22,6 +23,10 @@ class AttachmentResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'url' => $this->when(
+                $this->attachable_type === Consultation::class,
+                fn (): string => route('api.v1.consultations.attachments.show', [$this->attachable_id, $this->id]),
+            ),
             'mime' => $this->mime,
             'size' => $this->size,
             'created_at' => $this->created_at?->toIso8601String(),

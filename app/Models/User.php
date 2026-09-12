@@ -4,8 +4,10 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\Gender;
+use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -96,6 +98,34 @@ class User extends Authenticatable
     }
 
     /**
+     * Doctors the public may currently book.
+     *
+     * Mirrors isBookableDoctor() in SQL so a listing can filter in the
+     * database instead of loading every doctor and discarding most of them.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeBookableDoctors(Builder $query): void
+    {
+        /*
+         * Columns are qualified because this scope is also applied through the
+         * doctor_service pivot, which carries an is_active of its own.
+         */
+        $query->where('users.role', UserRole::Doctor)
+            ->where('users.is_active', true)
+            ->whereHas('doctorProfile', function (Builder $profile): void {
+                $profile->where('subscription_status', SubscriptionStatus::Trial)
+                    ->orWhere(function (Builder $dated): void {
+                        $dated->where('subscription_status', SubscriptionStatus::Active)
+                            ->where(function (Builder $window): void {
+                                $window->whereNull('subscription_ends_at')
+                                    ->orWhere('subscription_ends_at', '>', now());
+                            });
+                    });
+            });
+    }
+
+    /**
      * Whether this account is a doctor the public may currently book.
      *
      * Used to answer with a 404 rather than an empty calendar: a deactivated
@@ -114,6 +144,7 @@ class User extends Authenticatable
     public function offeredServices(): BelongsToMany
     {
         return $this->belongsToMany(Service::class, 'doctor_service', 'doctor_id', 'service_id')
+            ->using(DoctorServiceOffering::class)
             ->withPivot(['price', 'duration_minutes', 'is_active']);
     }
 

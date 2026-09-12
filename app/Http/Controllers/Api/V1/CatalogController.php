@@ -37,6 +37,7 @@ class CatalogController extends Controller
     {
         $services = Service::query()
             ->with('category')
+            ->withCatalogPricing()
             ->where('is_active', true)
             ->when(
                 $request->filled('category_id'),
@@ -59,6 +60,10 @@ class CatalogController extends Controller
     {
         abort_unless($service->is_active, 404);
 
-        return new ServiceResource($service->load('category'));
+        $service->load(['category', 'bookableDoctors.doctorProfile']);
+
+        return new ServiceResource(
+            Service::query()->withCatalogPricing()->findOrFail($service->id)->setRelations($service->getRelations())
+        );
     }
 }
