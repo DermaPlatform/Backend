@@ -8,6 +8,8 @@ use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -32,7 +34,8 @@ class User extends Authenticatable
         'gender',
         'password',
         'role',
-        'specialty',
+        'doctor_id',
+        'is_active',
     ];
 
     /**
@@ -42,7 +45,7 @@ class User extends Authenticatable
      */
     protected function imageUrl(): Attribute
     {
-        return Attribute::get(fn (): ?string => $this->image_path === null
+        return Attribute::get(fn(): ?string => $this->image_path === null
             ? null
             : Storage::disk(config('nadara.uploads.disk'))->url($this->image_path));
     }
@@ -70,6 +73,23 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    /**
+     * @return HasOne<DoctorProfile, $this>
+     */
+    public function doctorProfile(): HasOne
+    {
+        return $this->hasOne(DoctorProfile::class, 'user_id');
+    }
+
+    /**
+     * @return BelongsToMany<Service, $this>
+     */
+    public function offeredServices(): BelongsToMany
+    {
+        return $this->belongsToMany(Service::class, 'doctor_service', 'doctor_id', 'service_id')
+            ->withPivot(['price', 'duration_minutes', 'is_active']);
+    }
 
     public function patientAppointments()
     {
@@ -117,7 +137,7 @@ class User extends Authenticatable
      */
     protected function age(): Attribute
     {
-        return Attribute::get(fn (): ?int => $this->birth_date?->age);
+        return Attribute::get(fn(): ?int => $this->birth_date?->age);
     }
 
     /**
@@ -133,6 +153,7 @@ class User extends Authenticatable
             'birth_date' => 'date',
             'role' => UserRole::class,
             'gender' => Gender::class,
+            'is_active' => 'boolean',
         ];
     }
 }

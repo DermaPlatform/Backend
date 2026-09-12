@@ -21,10 +21,13 @@ class DatabaseSeeder extends Seeder
             'phone' => '0590000001',
         ]);
 
-        User::factory()->doctor()->create([
+        $doctor = User::factory()->doctor()->create([
             'name' => 'Dr. Layla Dermatologist',
             'email' => 'doctor@nadara.test',
             'phone' => '0590000002',
+        ]);
+
+        $doctor->doctorProfile()->update([
             'specialty' => 'Dermatology',
         ]);
 

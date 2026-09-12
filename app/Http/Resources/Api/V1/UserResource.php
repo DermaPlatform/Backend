@@ -46,7 +46,7 @@ class UserResource extends JsonResource
             'age' => $this->when($showsClinicalDetails, fn (): ?int => $this->age),
             'gender' => $this->when($showsClinicalDetails, fn (): ?string => $this->gender?->value),
             'role' => $this->role?->value,
-            'specialty' => $this->when($this->role === UserRole::Doctor, $this->specialty),
+            'specialty' => $this->when($this->role === UserRole::Doctor, fn (): ?string => $this->doctorProfile?->specialty),
             'email_verified' => $this->email_verified_at !== null,
             'created_at' => $this->created_at?->toIso8601String(),
         ];
