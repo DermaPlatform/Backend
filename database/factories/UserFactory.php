@@ -74,6 +74,19 @@ class UserFactory extends Factory
             });
     }
 
+    /**
+     * A secretary working for one doctor. The doctor is required: a secretary
+     * with a null doctor_id reads every orphaned record on the platform,
+     * because Laravel turns where('doctor_id', null) into IS NULL.
+     */
+    public function secretary(User $doctor): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'role' => UserRole::Secretary,
+            'doctor_id' => $doctor->id,
+        ]);
+    }
+
     public function admin(): static
     {
         return $this->state(fn (array $attributes) => [

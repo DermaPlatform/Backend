@@ -29,7 +29,6 @@ class AppointmentFactory extends Factory
             'patient_id' => User::factory()->patient(),
             'doctor_id' => User::factory()->doctor(),
             'service_id' => Service::factory(),
-            'duration_minutes' => $durationMinutes,
             'start_at' => $startAt,
             'end_at' => $startAt->copy()->addMinutes($durationMinutes),
             'hold_expires_at' => now()->addMinutes(15),

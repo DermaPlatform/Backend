@@ -18,7 +18,6 @@ class Appointment extends Model
         'patient_id',
         'doctor_id',
         'service_id',
-        'duration_minutes',
         'start_at',
         'end_at',
         'hold_expires_at',

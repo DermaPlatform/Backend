@@ -36,7 +36,7 @@ return new class extends Migration
             $table->index(['doctor_id', 'start_at']);
             $table->index('status');
 
-            $table->dropColumn('requested_date');
+            $table->dropColumn(['requested_date', 'duration_minutes']);
         });
     }
 
@@ -60,6 +60,7 @@ return new class extends Migration
             ])->default('pending')->change();
 
             $table->date('requested_date');
+            $table->integer('duration_minutes')->nullable();
 
             $table->dropColumn([
                 'start_at',
