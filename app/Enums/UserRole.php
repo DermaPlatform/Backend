@@ -7,6 +7,7 @@ enum UserRole: string
     case Patient = 'patient';
     case Doctor = 'doctor';
     case Admin = 'admin';
+    case Secretary = 'secretary';
 
     /**
      * Roles a visitor is allowed to self-register with.

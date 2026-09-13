@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\MedicalNoteFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MedicalNote extends Model
 {
+    /** @use HasFactory<MedicalNoteFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -16,27 +19,27 @@ class MedicalNote extends Model
         'notes',
     ];
 
-    public function patient()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function patient(): BelongsTo
     {
-        return $this->belongsTo(
-            User::class,
-            'patient_id'
-        );
+        return $this->belongsTo(User::class, 'patient_id');
     }
 
-    public function doctor()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function doctor(): BelongsTo
     {
-        return $this->belongsTo(
-            User::class,
-            'doctor_id'
-        );
+        return $this->belongsTo(User::class, 'doctor_id');
     }
 
-    public function appointment()
+    /**
+     * @return BelongsTo<Appointment, $this>
+     */
+    public function appointment(): BelongsTo
     {
-        return $this->belongsTo(
-            Appointment::class,
-            'appointment_id'
-        );
+        return $this->belongsTo(Appointment::class, 'appointment_id');
     }
 }

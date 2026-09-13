@@ -20,6 +20,17 @@ class ServiceResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'price' => $this->price,
+            /*
+             * Pricing lives on doctor_service now, so the catalog shows the
+             * cheapest doctor's figure and falls back to the service hint only
+             * while nobody has priced it yet.
+             */
+            'starting_price' => $this->when(
+                $this->starting_price !== null,
+                fn (): string => number_format((float) $this->starting_price, 2, '.', '')
+            ),
+            'bookable_doctors_count' => $this->whenNotNull($this->bookable_doctors_count),
+            'doctors' => DoctorResource::collection($this->whenLoaded('bookableDoctors')),
             'description' => $this->description,
             'image_url' => $this->image_url,
             'is_active' => $this->is_active,
