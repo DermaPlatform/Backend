@@ -11,7 +11,7 @@ it('returns the authenticated user from the me endpoint', function () {
         ->assertOk()
         ->assertJsonPath('data.id', $user->id)
         ->assertJsonPath('data.role', 'doctor')
-        ->assertJsonPath('data.specialty', $user->specialty);
+        ->assertJsonPath('data.specialty', $user->doctorProfile->specialty);
 });
 
 it('hides the specialty for non doctors', function () {

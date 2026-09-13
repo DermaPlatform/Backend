@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Gender;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -10,6 +11,8 @@ function validRegistrationPayload(array $overrides = []): array
         'name' => 'Sara Ahmad',
         'email' => 'sara@example.com',
         'phone' => '+966500000001',
+        'birth_date' => '1995-04-17',
+        'gender' => 'female',
         'password' => 'password123',
         'password_confirmation' => 'password123',
         'device_name' => 'iphone-15',
@@ -85,8 +88,56 @@ it('rejects an unconfirmed password', function () {
 it('validates required fields', function () {
     $this->postJson(route('api.v1.auth.register'), [])
         ->assertStatus(422)
-        ->assertJsonValidationErrors(['name', 'email', 'phone', 'password']);
+        ->assertJsonValidationErrors(['name', 'email', 'phone', 'birth_date', 'gender', 'password']);
 });
+
+it('stores the birth date and gender and returns them with the age', function () {
+    $this->travelTo('2026-08-30');
+
+    $this->postJson(route('api.v1.auth.register'), validRegistrationPayload())
+        ->assertCreated()
+        ->assertJsonPath('data.user.birth_date', '1995-04-17')
+        ->assertJsonPath('data.user.gender', Gender::Female->value)
+        ->assertJsonPath('data.user.age', 31);
+
+    $user = User::firstWhere('email', 'sara@example.com');
+
+    expect($user->gender)->toBe(Gender::Female)
+        ->and($user->birth_date->toDateString())->toBe('1995-04-17');
+});
+
+it('accepts the gender in any casing', function () {
+    $this->postJson(route('api.v1.auth.register'), validRegistrationPayload([
+        'gender' => ' MALE ',
+    ]))->assertCreated();
+
+    expect(User::firstWhere('email', 'sara@example.com')->gender)->toBe(Gender::Male);
+});
+
+it('rejects a gender outside the enum', function () {
+    $this->postJson(route('api.v1.auth.register'), validRegistrationPayload([
+        'gender' => 'unknown',
+    ]))->assertStatus(422)->assertJsonValidationErrors('gender');
+});
+
+it('rejects a birth date that is not in the past', function (string $birthDate) {
+    $this->postJson(route('api.v1.auth.register'), validRegistrationPayload([
+        'birth_date' => $birthDate,
+    ]))->assertStatus(422)->assertJsonValidationErrors('birth_date');
+})->with([
+    'today' => fn () => now()->toDateString(),
+    'tomorrow' => fn () => now()->addDay()->toDateString(),
+]);
+
+it('rejects an implausible or malformed birth date', function (string $birthDate) {
+    $this->postJson(route('api.v1.auth.register'), validRegistrationPayload([
+        'birth_date' => $birthDate,
+    ]))->assertStatus(422)->assertJsonValidationErrors('birth_date');
+})->with([
+    'older than the age ceiling' => '1089-04-17',
+    'wrong format' => '17/04/1995',
+    'not a date' => 'yesterday',
+]);
 
 it('rejects a password shorter than eight characters', function () {
     $this->postJson(route('api.v1.auth.register'), validRegistrationPayload([

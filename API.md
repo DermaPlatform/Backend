@@ -1,6 +1,8 @@
-# NADARA API — دليل المصادقة (v1)
+# NADARA API (v1)
 
-مرجع تكامل الفرونت إند مع نظام المصادقة. كل الأمثلة مأخوذة من السلوك الفعلي للـ backend ومغطّاة باختبارات.
+مرجع تكامل الفرونت إند. كل الأمثلة مأخوذة من السلوك الفعلي للـ backend ومغطّاة باختبارات.
+
+الأقسام من 1 إلى 11 تغطّي المصادقة. **القسم 12 يغطّي الحجز والدفع والاستشارات (سبرنت 3).**
 
 ---
 
@@ -126,6 +128,8 @@ POST /api/v1/auth/register
 | `name` | ✅ | نص، 2–255 حرف |
 | `email` | ✅ | إيميل صالح، فريد، **بيتحوّل لحروف صغيرة تلقائياً** |
 | `phone` | ✅ | `+` اختيارية ثم أرقام/مسافات/`-`/`()`، 7–20 خانة، فريد |
+| `birth_date` | ✅ | `YYYY-MM-DD`، قبل اليوم، وعمر أقل من 120 سنة |
+| `gender` | ✅ | `male` أو `female` (غير حسّاس لحالة الأحرف) |
 | `password` | ✅ | 8 أحرف على الأقل (شوف §6) |
 | `password_confirmation` | ✅ | مطابق لـ `password` |
 | `device_name` | ❌ | اسم الجهاز، الافتراضي `"api"` |
@@ -135,6 +139,8 @@ POST /api/v1/auth/register
   "name": "سارة أحمد",
   "email": "sara@example.com",
   "phone": "+966500000001",
+  "birth_date": "1995-04-17",
+  "gender": "female",
   "password": "password123",
   "password_confirmation": "password123",
   "device_name": "iphone-15"
@@ -152,6 +158,9 @@ POST /api/v1/auth/register
       "name": "سارة أحمد",
       "email": "sara@example.com",
       "phone": "+966500000001",
+      "birth_date": "1995-04-17",
+      "age": 31,
+      "gender": "female",
       "role": "patient",
       "email_verified": false,
       "created_at": "2026-08-18T10:30:00+00:00"
@@ -221,6 +230,9 @@ GET /api/v1/auth/me
     "name": "سارة أحمد",
     "email": "sara@example.com",
     "phone": "+966500000001",
+    "birth_date": "1995-04-17",
+    "age": 31,
+    "gender": "female",
     "role": "patient",
     "email_verified": false,
     "created_at": "2026-08-18T10:30:00+00:00"
@@ -229,6 +241,8 @@ GET /api/v1/auth/me
 ```
 
 استخدمه عند إقلاع التطبيق للتحقق إن التوكن المخزّن لسا صالح واسترجاع بيانات المستخدم.
+
+`birth_date` و `age` و `gender` بيانات سريرية: بتظهر لصاحب الحساب وللدكتور والأدمن فقط، وبتنحذف من الرد لأي مستخدم تاني.
 
 ---
 
@@ -571,3 +585,218 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173,https://app.nadara.com
 | `POST` | `/api/v1/auth/logout-all` | 🔒 | `200` |
 | `POST` | `/api/v1/auth/forgot-password` | — | `200` |
 | `POST` | `/api/v1/auth/reset-password` | — | `200` |
+
+---
+
+## 12. الحجز والدفع والاستشارات (سبرنت 3)
+
+### 12.1 رحلة المريض من أولها لآخرها
+
+الترتيب مُلزِم — كل خطوة تعطيك المُعرّف الذي تحتاجه للتي بعدها:
+
+```
+GET  /doctors?service_id=3           → اختر طبيباً        → doctor_id
+GET  /doctors/{doctor}/availability  → اختر فترة فاضية    → start_at
+POST /appointments                   → احجز (201)         → appointment_id
+POST /appointments/{id}/payment-receipt → ارفع الإيصال (201)
+        … الموظف يراجع …
+POST /payments/{id}/verify           → الموعد يصير approved
+```
+
+---
+
+### 12.2 دليل الأطباء
+
+#### `GET /doctors` — عام
+
+يرجّع الأطباء **القابلين للحجز فقط**: مفعّلين، واشتراكهم ساري. الطبيب المعطَّل أو منتهي الاشتراك يختفي تماماً.
+
+| الفلتر | مثال |
+|---|---|
+| `service_id` | `?service_id=3` — من يقدّم هذه الخدمة |
+| `q` | `?q=ليلى` — بحث بالاسم |
+| `accepts_online_consultations` | `?accepts_online_consultations=1` |
+| `per_page` | `?per_page=20` (الحد الأقصى 100) |
+
+```json
+{
+  "data": [{
+    "id": 2,
+    "name": "Dr. Layla Dermatologist",
+    "image_url": null,
+    "specialty": "Dermatology",
+    "accepts_appointments": true,
+    "accepts_online_consultations": true,
+    "services": [
+      { "id": 1, "name": "General Skin Examination", "price": "60.00", "duration_minutes": 30 }
+    ]
+  }],
+  "links": { }, "meta": { }
+}
+```
+
+> **`price` و `duration_minutes` هنا من الطبيب لا من الخدمة.** كل طبيب يسعّر الخدمة نفسها بسعره ومدّته. هذا هو مصدر الحقيقة الوحيد لما ستدفعه.
+
+#### `GET /doctors/{doctor}` — عام
+
+نفس الكائن لطبيب واحد. **`404`** إن كان معطَّلاً أو اشتراكه منتهياً.
+
+#### الكتالوج صار يحمل سعر «يبدأ من»
+
+`GET /services` و `GET /services/{service}` أضافا حقلين:
+
+```json
+{
+  "id": 1,
+  "name": "General Skin Examination",
+  "price": "80.00",                  ← سعر إرشادي قديم، لا تعرضه للمريض
+  "starting_price": "60.00",         ← أرخص طبيب — اعرض هذا: «يبدأ من 60»
+  "bookable_doctors_count": 2
+}
+```
+
+`starting_price` **يغيب من الرد** إذا لم يسعّر أي طبيب الخدمة بعد. و`GET /services/{service}` يرجّع معه مصفوفة `doctors` كاملة.
+
+---
+
+### 12.3 الإتاحة
+
+#### `GET /doctors/{doctor}/availability?date=YYYY-MM-DD` — عام
+
+| المعامل | القاعدة |
+|---|---|
+| `date` | **مطلوب**، صيغة `Y-m-d`، من اليوم حتى 90 يوماً |
+
+```json
+{ "data": [
+  { "start_at": "2026-09-20T09:00:00+03:00", "end_at": "2026-09-20T09:30:00+03:00", "available": true },
+  { "start_at": "2026-09-20T09:30:00+03:00", "end_at": "2026-09-20T10:00:00+03:00", "available": false }
+]}
+```
+
+ثلاث نقاط مهمة:
+
+1. **الفترات المشغولة تُرجَع كذلك** مع `available: false` — اعرضها مشطوبة لا تخفها.
+2. **الأوقات بتوقيت العيادة** (`Asia/Hebron`) مع الإزاحة `+03:00` ملحقة. اعرض النص كما هو أو حلّله، كلاهما صحيح.
+3. **مصفوفة فارغة `[]`** معناها الطبيب لا يداوم هذا اليوم أصلاً — مختلف عن 16 فترة كلها `false` (يداوم لكنه مجاز).
+
+---
+
+### 12.4 الحجز
+
+#### `POST /appointments` 🔒 مريض فقط
+
+```json
+{ "doctor_id": 2, "service_id": 1, "start_at": "2026-09-20T09:00:00+03:00" }
+```
+
+| الاستجابة | متى |
+|---|---|
+| `201` | نجح الحجز، الحالة `pending_payment` |
+| **`409`** | **الفترة حُجزت قبلك** — أعد تحميل `/availability` |
+| `422` | الطبيب لا يقدّم الخدمة / اشتراكه منتهٍ / الوقت في الماضي |
+| `403` | لست مريضاً |
+
+> **`409` وليس `422` عمداً.** طلبك كان صحيحاً، لكن أحدهم سبقك بجزء من الثانية. الشيء الوحيد المفيد هو إعادة تحميل الفترات لا تصحيح المدخلات.
+
+الرد يحمل `hold_expires_at` — **مهلة رفع الإيصال**، ثلاثون دقيقة افتراضياً. بعدها يصير الموعد `expired` وتتحرر الفترة.
+
+#### `GET /appointments` 🔒
+
+القائمة تتكيّف مع دورك تلقائياً:
+
+| دورك | ترى |
+|---|---|
+| مريض | حجوزاتك أنت |
+| طبيب | رزنامتك أنت |
+| سكرتير | رزنامة طبيبك فقط |
+| أدمن | كل شيء |
+
+فلتر `?status=pending_payment` متاح. الحالات: `pending_payment` · `awaiting_review` · `approved` · `completed` · `expired` · `rejected` · `cancelled`.
+
+#### `POST /appointments/{id}/cancel` 🔒 صاحب الحجز فقط
+
+```json
+{ "reason": "ظرف طارئ" }
+```
+
+`422` إن كان الموعد مغلقاً أصلاً، أو إن بقي أقل من **24 ساعة** على موعده. الرد يحمل `refund_required` — يصير `true` إذا كان المبلغ قد تُحقِّق منه فعلاً.
+
+---
+
+### 12.5 الدفع
+
+#### `POST /appointments/{id}/payment-receipt` 🔒 `multipart/form-data`
+
+| الحقل | القاعدة |
+|---|---|
+| `receipt` | **مطلوب** · `jpg,jpeg,png,pdf` · حد أقصى 4 ميجا |
+| `method` | اختياري، نص ≤ 50 |
+| `reference` | اختياري، نص ≤ 100 |
+
+النتيجة: الدفعة `submitted`، الموعد `awaiting_review`، و`hold_expires_at` يُمسَح (الفترة لم تعد مؤقتة). يُولَّد `receipt_number` بصيغة `NDR-2026-000001`.
+
+#### `GET /appointments/{id}/payment-receipt` 🔒
+
+يرجّع **الملف نفسه** لا JSON. مسموح لصاحب الحجز، وللطبيب، ولسكرتيره، وللأدمن — لا أحد غيرهم. الملفات على قرص خاص ولا يوجد رابط عام لها إطلاقاً.
+
+#### `POST /payments/{id}/verify` و `/reject` 🔒 طاقم
+
+`verify` ← الموعد يصير `approved` (أو الاستشارة `awaiting_reply`).
+`reject` ← يتطلب `reason`، والموعد يعود `pending_payment` **بمهلة جديدة** ليرسل المريض إيصالاً صحيحاً.
+
+الصلاحية بالـ Policy لا بالدور: الأدمن، أو طبيب هذا الموعد، أو سكرتيره حصراً.
+
+---
+
+### 12.6 الاستشارات
+
+#### `POST /consultations` 🔒 مريض · `multipart/form-data`
+
+| الحقل | القاعدة |
+|---|---|
+| `doctor_id` · `service_id` | مطلوبان |
+| `symptoms` | مطلوب، **20 حرفاً على الأقل**، حتى 5000 |
+| `photos[]` | اختياري، **حتى 5 صور**، `jpg,jpeg,png,webp`، 2 ميجا لكل صورة |
+
+`422` إذا كان الطبيب لا يقبل الاستشارات عن بُعد.
+
+**الحالة تبقى `pending_payment` حتى يتحقق الطاقم من الدفع** — رفع الإيصال وحده لا يكفي. الطبيب لا يقرأ الأعراض قبل تأكيد المبلغ.
+
+#### بقية المسارات
+
+| المسار | ملاحظة |
+|---|---|
+| `GET /consultations` | مريضك/طبيبك/الأدمن — **السكرتير يرى `[]`** |
+| `GET /consultations/{id}` | يحمل `messages` و `attachments` |
+| `POST /consultations/{id}/payment-receipt` | نفس قواعد إيصال الموعد |
+| `POST /consultations/{id}/messages` | `message` مطلوب، 2–5000 حرف |
+| `GET /consultations/{id}/attachments/{attachment}` | يرجّع الصورة نفسها |
+
+ردّ الطبيب ← الحالة `replied`. ردّ المريض ← تعود `awaiting_reply` حتى لا تضيع متابعة بلا جواب.
+
+> **السكرتير محجوب عن الاستشارات كلها عمداً.** الدور للرزنامة والمصاري، لا للتشخيص. لكنه **مسموح** في مراجعة الإيصالات.
+
+---
+
+### 12.7 جدول مرجعي — سبرنت 3
+
+| الطريقة | المسار | مصادقة | نجاح |
+|---|---|:---:|---|
+| `GET` | `/api/v1/doctors` | — | `200` |
+| `GET` | `/api/v1/doctors/{doctor}` | — | `200` |
+| `GET` | `/api/v1/doctors/{doctor}/availability` | — | `200` |
+| `GET` | `/api/v1/appointments` | 🔒 | `200` |
+| `POST` | `/api/v1/appointments` | 🔒 مريض | `201` / **`409`** |
+| `GET` | `/api/v1/appointments/{id}` | 🔒 | `200` |
+| `POST` | `/api/v1/appointments/{id}/cancel` | 🔒 مريض | `200` |
+| `POST` | `/api/v1/appointments/{id}/payment-receipt` | 🔒 مريض | `201` |
+| `GET` | `/api/v1/appointments/{id}/payment-receipt` | 🔒 | `200` (ملف) |
+| `POST` | `/api/v1/payments/{id}/verify` | 🔒 طاقم | `200` |
+| `POST` | `/api/v1/payments/{id}/reject` | 🔒 طاقم | `200` |
+| `GET` | `/api/v1/consultations` | 🔒 | `200` |
+| `POST` | `/api/v1/consultations` | 🔒 مريض | `201` |
+| `GET` | `/api/v1/consultations/{id}` | 🔒 | `200` |
+| `POST` | `/api/v1/consultations/{id}/payment-receipt` | 🔒 مريض | `201` |
+| `POST` | `/api/v1/consultations/{id}/messages` | 🔒 | `201` |
+| `GET` | `/api/v1/consultations/{id}/attachments/{attachment}` | 🔒 | `200` (ملف) |

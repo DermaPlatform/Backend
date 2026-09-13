@@ -2,14 +2,17 @@
 
 namespace App\Models;
 
+use Database\Factories\ConsultationMessageFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ConsultationMessage extends Model
 {
+    /** @use HasFactory<ConsultationMessageFactory> */
     use HasFactory;
 
-    public $timestamps = false;
+    const UPDATED_AT = null;
 
     protected $fillable = [
         'consultation_id',
@@ -17,19 +20,19 @@ class ConsultationMessage extends Model
         'message',
     ];
 
-    public function consultation()
+    /**
+     * @return BelongsTo<Consultation, $this>
+     */
+    public function consultation(): BelongsTo
     {
-        return $this->belongsTo(
-            Consultation::class,
-            'consultation_id'
-        );
+        return $this->belongsTo(Consultation::class, 'consultation_id');
     }
 
-    public function sender()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function sender(): BelongsTo
     {
-        return $this->belongsTo(
-            User::class,
-            'sender_id'
-        );
+        return $this->belongsTo(User::class, 'sender_id');
     }
 }

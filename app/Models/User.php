@@ -3,11 +3,18 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\Gender;
+use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -24,10 +31,40 @@ class User extends Authenticatable
         'name',
         'email',
         'phone',
+        'image_path',
+        'birth_date',
+        'gender',
         'password',
         'role',
-        'specialty',
+        'doctor_id',
+        'is_active',
     ];
+
+    /**
+     * Public URL of the service image, or null when none has been uploaded.
+     *
+     * @return Attribute<?string, never>
+     */
+    protected function imageUrl(): Attribute
+    {
+        return Attribute::get(fn (): ?string => $this->image_path === null
+            ? null
+            : Storage::disk(config('nadara.uploads.disk'))->url($this->image_path));
+    }
+
+    /**
+     * Drop the stored image file and clear the column.
+     */
+    public function clearImage(): void
+    {
+        if ($this->image_path === null) {
+            return;
+        }
+
+        Storage::disk(config('nadara.uploads.disk'))->delete($this->image_path);
+
+        $this->update(['image_path' => null]);
+    }
 
     /**
      * The attributes that should be hidden for serialization.
@@ -38,6 +75,78 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    /**
+     * Column defaults mirrored onto the model.
+     *
+     * The database already defaults is_active to true, but a freshly created
+     * instance does not read it back, so authorization checks on the same
+     * request would see null and deny a brand new account.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_active' => true,
+    ];
+
+    /**
+     * @return HasOne<DoctorProfile, $this>
+     */
+    public function doctorProfile(): HasOne
+    {
+        return $this->hasOne(DoctorProfile::class, 'user_id');
+    }
+
+    /**
+     * Doctors the public may currently book.
+     *
+     * Mirrors isBookableDoctor() in SQL so a listing can filter in the
+     * database instead of loading every doctor and discarding most of them.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeBookableDoctors(Builder $query): void
+    {
+        /*
+         * Columns are qualified because this scope is also applied through the
+         * doctor_service pivot, which carries an is_active of its own.
+         */
+        $query->where('users.role', UserRole::Doctor)
+            ->where('users.is_active', true)
+            ->whereHas('doctorProfile', function (Builder $profile): void {
+                $profile->where('subscription_status', SubscriptionStatus::Trial)
+                    ->orWhere(function (Builder $dated): void {
+                        $dated->where('subscription_status', SubscriptionStatus::Active)
+                            ->where(function (Builder $window): void {
+                                $window->whereNull('subscription_ends_at')
+                                    ->orWhere('subscription_ends_at', '>', now());
+                            });
+                    });
+            });
+    }
+
+    /**
+     * Whether this account is a doctor the public may currently book.
+     *
+     * Used to answer with a 404 rather than an empty calendar: a deactivated
+     * or lapsed doctor should read as absent, not as permanently unavailable.
+     */
+    public function isBookableDoctor(): bool
+    {
+        return $this->role === UserRole::Doctor
+            && $this->is_active
+            && $this->doctorProfile?->hasActiveSubscription() === true;
+    }
+
+    /**
+     * @return BelongsToMany<Service, $this>
+     */
+    public function offeredServices(): BelongsToMany
+    {
+        return $this->belongsToMany(Service::class, 'doctor_service', 'doctor_id', 'service_id')
+            ->using(DoctorServiceOffering::class)
+            ->withPivot(['price', 'duration_minutes', 'is_active']);
+    }
 
     public function patientAppointments()
     {
@@ -80,6 +189,15 @@ class User extends Authenticatable
     }
 
     /**
+     * Age in whole years, or null while no birth date is on file. Doctors read
+     * this instead of recomputing it on every screen.
+     */
+    protected function age(): Attribute
+    {
+        return Attribute::get(fn (): ?int => $this->birth_date?->age);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -89,7 +207,10 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'birth_date' => 'date',
             'role' => UserRole::class,
+            'gender' => Gender::class,
+            'is_active' => 'boolean',
         ];
     }
 }

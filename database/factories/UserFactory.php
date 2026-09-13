@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\Gender;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -29,10 +30,11 @@ class UserFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'phone' => fake()->unique()->numerify('+9665########'),
+            'birth_date' => fake()->dateTimeBetween('-70 years', '-18 years')->format('Y-m-d'),
+            'gender' => fake()->randomElement(Gender::cases()),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'role' => UserRole::Patient,
-            'specialty' => null,
             'remember_token' => Str::random(10),
         ];
     }
@@ -51,15 +53,37 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::Patient,
-            'specialty' => null,
         ]);
     }
 
     public function doctor(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'role' => UserRole::Doctor,
-            'specialty' => fake()->randomElement(['Cardiology', 'Dermatology', 'Pediatrics', 'Neurology']),
+        return $this
+            ->state(fn (array $attributes) => [
+                'role' => UserRole::Doctor,
+            ])
+            ->afterCreating(function (User $user): void {
+                $user->doctorProfile()->create([
+                    'specialty' => fake()->randomElement([
+                        'Cardiology',
+                        'Dermatology',
+                        'Pediatrics',
+                        'Neurology',
+                    ]),
+                ]);
+            });
+    }
+
+    /**
+     * A secretary working for one doctor. The doctor is required: a secretary
+     * with a null doctor_id reads every orphaned record on the platform,
+     * because Laravel turns where('doctor_id', null) into IS NULL.
+     */
+    public function secretary(User $doctor): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'role' => UserRole::Secretary,
+            'doctor_id' => $doctor->id,
         ]);
     }
 
@@ -67,7 +91,13 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::Admin,
-            'specialty' => null,
+        ]);
+    }
+
+    public function withImage(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'image_path' => 'users/'.fake()->uuid().'.jpg',
         ]);
     }
 }

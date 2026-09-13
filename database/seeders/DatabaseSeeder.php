@@ -15,11 +15,30 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        User::factory()->admin()->create([
+            'name' => 'Nadara Admin',
+            'email' => 'admin@nadara.test',
+            'phone' => '0590000001',
         ]);
+
+        $doctor = User::factory()->doctor()->create([
+            'name' => 'Dr. Layla Dermatologist',
+            'email' => 'doctor@nadara.test',
+            'phone' => '0590000002',
+        ]);
+
+        User::factory()->secretary($doctor)->create([
+            'name' => 'Nadara Secretary',
+            'email' => 'secretary@nadara.test',
+            'phone' => '0590000007',
+        ]);
+
+        User::factory()->patient()->create([
+            'name' => 'Test Patient',
+            'email' => 'patient@nadara.test',
+            'phone' => '0590000003',
+        ]);
+
+        $this->call(CatalogSeeder::class);
     }
 }
