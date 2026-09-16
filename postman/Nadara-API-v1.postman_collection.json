@@ -1328,6 +1328,127 @@
           ]
         },
         {
+          "name": "Filter appointments by period",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "period: today | tomorrow | week (Saturday to Friday) | month. Days follow the clinic timezone, and results come oldest first. Cannot be combined with from/to.",
+            "url": {
+              "raw": "{{base_url}}/appointments?period=today",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "today"
+                },
+                {
+                  "key": "period",
+                  "value": "tomorrow",
+                  "disabled": true
+                },
+                {
+                  "key": "period",
+                  "value": "week",
+                  "disabled": true
+                },
+                {
+                  "key": "period",
+                  "value": "month",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter appointments by date range",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "from and to are Y-m-d dates in the clinic timezone, both inclusive. Either one may be sent alone.",
+            "url": {
+              "raw": "{{base_url}}/appointments?from=2026-09-20&to=2026-09-26",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-09-20"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-09-26"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter appointments by doctor (admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Admin only: log in as an admin first. Any other role gets 422. Combines with period, from/to and status.",
+            "url": {
+              "raw": "{{base_url}}/appointments?doctor_id={{doctor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "doctor_id",
+                  "value": "{{doctor_id}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Show one appointment",
           "request": {
             "method": "GET",

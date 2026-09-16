@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\CancelAppointmentRequest;
+use App\Http\Requests\Api\V1\ListAppointmentsRequest;
 use App\Http\Requests\Api\V1\StoreAppointmentRequest;
 use App\Http\Resources\Api\V1\AppointmentResource;
 use App\Models\Appointment;
@@ -15,7 +16,6 @@ use App\Services\CancellationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
@@ -32,8 +32,10 @@ class AppointmentController extends Controller
     /**
      * The caller's own appointments, scoped by the role they hold.
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(ListAppointmentsRequest $request): AnonymousResourceCollection
     {
+        [$windowStart, $windowEnd] = $request->startWindow();
+
         $appointments = Appointment::query()
             ->with(['patient', 'doctor', 'service', 'payment'])
             ->tap(fn ($query) => $this->scopeToViewer($query, $request->user()))
@@ -41,7 +43,13 @@ class AppointmentController extends Controller
                 $request->filled('status'),
                 fn ($query) => $query->where('status', $request->string('status')->value())
             )
-            ->orderByDesc('start_at')
+            ->when(
+                $request->filled('doctor_id'),
+                fn ($query) => $query->where('doctor_id', $request->integer('doctor_id'))
+            )
+            ->when($windowStart, fn ($query) => $query->where('start_at', '>=', $windowStart))
+            ->when($windowEnd, fn ($query) => $query->where('start_at', '<', $windowEnd))
+            ->orderBy('start_at', $request->filled('period') ? 'asc' : 'desc')
             ->paginate($this->perPage($request));
 
         return AppointmentResource::collection($appointments);
