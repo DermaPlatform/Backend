@@ -40,5 +40,6 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call(CatalogSeeder::class);
+        $this->call(DemoSeeder::class);
     }
 }
