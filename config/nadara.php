@@ -94,6 +94,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Portals
+    |--------------------------------------------------------------------------
+    |
+    | Each portal is a separate front end with its own sign-in. The URL is only
+    | used to address password reset links, and falls back to app.frontend_url
+    | while a front end has none of its own yet.
+    |
+    */
+
+    'portals' => [
+        'patient' => ['frontend_url' => env('PATIENT_FRONTEND_URL')],
+        'clinic' => ['frontend_url' => env('CLINIC_FRONTEND_URL')],
+        'admin' => ['frontend_url' => env('ADMIN_FRONTEND_URL')],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Pagination
     |--------------------------------------------------------------------------
     */

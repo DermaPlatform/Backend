@@ -21,7 +21,7 @@ it('blocks guests, patients and doctors from category management', function (str
         return;
     }
 
-    $this->actingAs(User::factory()->{$state}()->create())
+    $this->actingAsPortal(User::factory()->{$state}()->create())
         ->getJson(route('api.v1.admin.categories.index'))
         ->assertStatus($status);
 
@@ -36,7 +36,7 @@ it('lists categories with a service count', function (): void {
     $category = ServiceCategory::factory()->create(['name' => 'Medical']);
     Service::factory()->count(3)->for($category, 'category')->create();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->getJson(route('api.v1.admin.categories.index'))
         ->assertOk()
         ->assertJsonPath('data.0.name', 'Medical')
@@ -44,7 +44,7 @@ it('lists categories with a service count', function (): void {
 });
 
 it('creates a category', function (): void {
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.categories.store'), ['name' => 'Laser Treatments'])
         ->assertCreated()
         ->assertJsonPath('data.name', 'Laser Treatments');
@@ -55,14 +55,14 @@ it('creates a category', function (): void {
 it('rejects a duplicate category name', function (): void {
     ServiceCategory::factory()->create(['name' => 'Cosmetic']);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.categories.store'), ['name' => 'Cosmetic'])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('name');
 });
 
 it('requires a name when creating a category', function (): void {
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.categories.store'), [])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('name');
@@ -71,7 +71,7 @@ it('requires a name when creating a category', function (): void {
 it('reuses the name of a soft deleted category', function (): void {
     ServiceCategory::factory()->trashed()->create(['name' => 'Retired']);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.categories.store'), ['name' => 'Retired'])
         ->assertCreated();
 });
@@ -79,7 +79,7 @@ it('reuses the name of a soft deleted category', function (): void {
 it('updates a category', function (): void {
     $category = ServiceCategory::factory()->create(['name' => 'Old']);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->putJson(route('api.v1.admin.categories.update', $category), ['name' => 'New'])
         ->assertOk()
         ->assertJsonPath('data.name', 'New');
@@ -90,7 +90,7 @@ it('updates a category', function (): void {
 it('lets a category keep its own name on update', function (): void {
     $category = ServiceCategory::factory()->create(['name' => 'Unchanged']);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->putJson(route('api.v1.admin.categories.update', $category), ['name' => 'Unchanged'])
         ->assertOk();
 });
@@ -98,7 +98,7 @@ it('lets a category keep its own name on update', function (): void {
 it('soft deletes an empty category', function (): void {
     $category = ServiceCategory::factory()->create();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->deleteJson(route('api.v1.admin.categories.destroy', $category))
         ->assertOk();
 
@@ -109,7 +109,7 @@ it('refuses to delete a category that still has services', function (): void {
     $category = ServiceCategory::factory()->create();
     Service::factory()->for($category, 'category')->create();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->deleteJson(route('api.v1.admin.categories.destroy', $category))
         ->assertStatus(409);
 

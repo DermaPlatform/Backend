@@ -20,7 +20,7 @@ it('rejects unauthenticated image requests', function (): void {
 });
 
 it('returns a null image url while no image has been uploaded', function (): void {
-    $this->actingAs($this->user)
+    $this->actingAsPortal($this->user)
         ->getJson(route('api.v1.profile.show'))
         ->assertOk()
         ->assertJsonPath('data.image_url', null);
@@ -29,7 +29,7 @@ it('returns a null image url while no image has been uploaded', function (): voi
 it('uploads a profile image', function (): void {
     Storage::fake(config('nadara.uploads.disk'));
 
-    $response = $this->actingAs($this->user)
+    $response = $this->actingAsPortal($this->user)
         ->post(route('api.v1.profile.image.update'), [
             'image' => UploadedFile::fake()->image('me.jpg'),
         ])
@@ -48,7 +48,7 @@ it('uploads a profile image', function (): void {
 it('replaces the profile image and deletes the previous file', function (): void {
     Storage::fake(config('nadara.uploads.disk'));
 
-    $this->actingAs($this->user)
+    $this->actingAsPortal($this->user)
         ->post(route('api.v1.profile.image.update'), [
             'image' => UploadedFile::fake()->image('first.jpg'),
         ])
@@ -56,7 +56,7 @@ it('replaces the profile image and deletes the previous file', function (): void
 
     $firstPath = $this->user->refresh()->image_path;
 
-    $this->actingAs($this->user)
+    $this->actingAsPortal($this->user)
         ->post(route('api.v1.profile.image.update'), [
             'image' => UploadedFile::fake()->image('second.png'),
         ])
@@ -72,7 +72,7 @@ it('replaces the profile image and deletes the previous file', function (): void
 it('removes the profile image', function (): void {
     Storage::fake(config('nadara.uploads.disk'));
 
-    $this->actingAs($this->user)
+    $this->actingAsPortal($this->user)
         ->post(route('api.v1.profile.image.update'), [
             'image' => UploadedFile::fake()->image('gone.jpg'),
         ])
@@ -80,7 +80,7 @@ it('removes the profile image', function (): void {
 
     $path = $this->user->refresh()->image_path;
 
-    $this->actingAs($this->user)
+    $this->actingAsPortal($this->user)
         ->deleteJson(route('api.v1.profile.image.destroy'))
         ->assertOk()
         ->assertJsonPath('message', 'Profile image removed successfully.')
@@ -93,7 +93,7 @@ it('removes the profile image', function (): void {
 it('removes nothing when the user has no image', function (): void {
     Storage::fake(config('nadara.uploads.disk'));
 
-    $this->actingAs($this->user)
+    $this->actingAsPortal($this->user)
         ->deleteJson(route('api.v1.profile.image.destroy'))
         ->assertOk()
         ->assertJsonPath('data.image_url', null);
@@ -104,7 +104,7 @@ it('removes nothing when the user has no image', function (): void {
 it('rejects an invalid profile image', function (UploadedFile $file): void {
     Storage::fake(config('nadara.uploads.disk'));
 
-    $this->actingAs($this->user)
+    $this->actingAsPortal($this->user)
         ->post(route('api.v1.profile.image.update'), ['image' => $file])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('image');
@@ -117,7 +117,7 @@ it('rejects an invalid profile image', function (UploadedFile $file): void {
 ]);
 
 it('requires an image on upload', function (): void {
-    $this->actingAs($this->user)
+    $this->actingAsPortal($this->user)
         ->postJson(route('api.v1.profile.image.update'), [])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('image');
@@ -132,7 +132,7 @@ it('only touches the authenticated user image', function (): void {
 
     $otherUser = User::factory()->patient()->create();
 
-    $this->actingAs($this->user)
+    $this->actingAsPortal($this->user)
         ->post(route('api.v1.profile.image.update'), [
             'image' => UploadedFile::fake()->image('mine.jpg'),
         ])
@@ -145,7 +145,7 @@ it('only touches the authenticated user image', function (): void {
 it('exposes the profile image url', function (): void {
     $user = User::factory()->patient()->withImage()->create();
 
-    $this->actingAs($user)
+    $this->actingAsPortal($user)
         ->getJson(route('api.v1.profile.show'))
         ->assertOk()
         ->assertJsonPath('data.image_url', config('app.url').'/storage/'.$user->image_path);

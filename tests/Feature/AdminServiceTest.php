@@ -21,7 +21,7 @@ it('blocks non-admins from service management', function (string $state, int $st
         return;
     }
 
-    $this->actingAs(User::factory()->{$state}()->create())
+    $this->actingAsPortal(User::factory()->{$state}()->create())
         ->postJson(route('api.v1.admin.services.store'), [])
         ->assertStatus($status);
 })->with([
@@ -34,7 +34,7 @@ it('lists services including deactivated ones', function (): void {
     Service::factory()->for($this->category, 'category')->create(['name' => 'Active One']);
     Service::factory()->for($this->category, 'category')->inactive()->create(['name' => 'Inactive One']);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->getJson(route('api.v1.admin.services.index'))
         ->assertOk()
         ->assertJsonCount(2, 'data');
@@ -44,7 +44,7 @@ it('filters the admin listing by active state', function (): void {
     Service::factory()->for($this->category, 'category')->create();
     Service::factory()->for($this->category, 'category')->inactive()->create(['name' => 'Hidden']);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->getJson(route('api.v1.admin.services.index', ['is_active' => false]))
         ->assertOk()
         ->assertJsonCount(1, 'data')
@@ -52,7 +52,7 @@ it('filters the admin listing by active state', function (): void {
 });
 
 it('creates a service', function (): void {
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.services.store'), [
             'category_id' => $this->category->id,
             'name' => 'Acne Treatment',
@@ -70,7 +70,7 @@ it('creates a service', function (): void {
 });
 
 it('validates the service payload', function (array $payload, string $field): void {
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.services.store'), $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors($field);
@@ -84,7 +84,7 @@ it('validates the service payload', function (array $payload, string $field): vo
 it('rejects a duplicate service name', function (): void {
     Service::factory()->for($this->category, 'category')->create(['name' => 'Chemical Peel']);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.services.store'), [
             'category_id' => $this->category->id,
             'name' => 'Chemical Peel',
@@ -97,7 +97,7 @@ it('rejects a duplicate service name', function (): void {
 it('updates a service price and reflects it in the public catalog immediately', function (): void {
     $service = Service::factory()->for($this->category, 'category')->create(['price' => 100]);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->putJson(route('api.v1.admin.services.update', $service), ['price' => 250])
         ->assertOk();
 
@@ -109,14 +109,14 @@ it('updates a service price and reflects it in the public catalog immediately', 
 it('toggles a service in and out of the public catalog', function (): void {
     $service = Service::factory()->for($this->category, 'category')->create();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.services.toggle-active', $service))
         ->assertOk()
         ->assertJsonPath('data.is_active', false);
 
     $this->getJson(route('api.v1.services.show', $service))->assertNotFound();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.services.toggle-active', $service))
         ->assertOk()
         ->assertJsonPath('data.is_active', true);
@@ -127,7 +127,7 @@ it('toggles a service in and out of the public catalog', function (): void {
 it('soft deletes a service and removes it from the patient catalog', function (): void {
     $service = Service::factory()->for($this->category, 'category')->create();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->deleteJson(route('api.v1.admin.services.destroy', $service))
         ->assertOk();
 
@@ -138,7 +138,7 @@ it('soft deletes a service and removes it from the patient catalog', function ()
 it('keeps the deleted service row on record for past bookings', function (): void {
     $service = Service::factory()->for($this->category, 'category')->create();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->deleteJson(route('api.v1.admin.services.destroy', $service))
         ->assertOk();
 
@@ -149,7 +149,7 @@ it('keeps the deleted service row on record for past bookings', function (): voi
 it('creates a service with an uploaded image', function (): void {
     Storage::fake(config('nadara.uploads.disk'));
 
-    $response = $this->actingAs($this->admin)
+    $response = $this->actingAsPortal($this->admin)
         ->post(route('api.v1.admin.services.store'), [
             'category_id' => $this->category->id,
             'name' => 'Laser Session',
@@ -166,7 +166,7 @@ it('creates a service with an uploaded image', function (): void {
 });
 
 it('creates a service without an image', function (): void {
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.admin.services.store'), [
             'category_id' => $this->category->id,
             'name' => 'Consultation Only',
@@ -181,7 +181,7 @@ it('replaces the service image and deletes the previous file', function (): void
 
     $service = Service::factory()->for($this->category, 'category')->create();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->post(route('api.v1.admin.services.image.update', $service), [
             'image' => UploadedFile::fake()->image('first.jpg'),
         ])
@@ -189,7 +189,7 @@ it('replaces the service image and deletes the previous file', function (): void
 
     $firstPath = $service->refresh()->image_path;
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->post(route('api.v1.admin.services.image.update', $service), [
             'image' => UploadedFile::fake()->image('second.png'),
         ])
@@ -207,7 +207,7 @@ it('removes the service image', function (): void {
 
     $service = Service::factory()->for($this->category, 'category')->create();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->post(route('api.v1.admin.services.image.update', $service), [
             'image' => UploadedFile::fake()->image('gone.jpg'),
         ])
@@ -215,7 +215,7 @@ it('removes the service image', function (): void {
 
     $path = $service->refresh()->image_path;
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->deleteJson(route('api.v1.admin.services.image.destroy', $service))
         ->assertOk()
         ->assertJsonPath('data.image_url', null);
@@ -229,7 +229,7 @@ it('rejects an invalid service image', function (UploadedFile $file): void {
 
     $service = Service::factory()->for($this->category, 'category')->create();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->post(route('api.v1.admin.services.image.update', $service), ['image' => $file])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('image');

@@ -41,7 +41,7 @@ function consultationPayload(array $overrides = []): array
 }
 
 it('opens a consultation pending payment', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.consultations.store'), consultationPayload())
         ->assertCreated()
         ->assertJsonPath('data.status', ConsultationStatus::PendingPayment->value);
@@ -53,7 +53,7 @@ it('opens a consultation pending payment', function (): void {
 });
 
 it('stores attached photographs on the private disk', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.consultations.store'), consultationPayload([
             'photos' => [
                 UploadedFile::fake()->image('rash-1.jpg'),
@@ -73,7 +73,7 @@ it('stores attached photographs on the private disk', function (): void {
 });
 
 it('never exposes the stored path of a clinical photograph', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.consultations.store'), consultationPayload([
             'photos' => [UploadedFile::fake()->image('rash.jpg')],
         ]))
@@ -84,14 +84,14 @@ it('never exposes the stored path of a clinical photograph', function (): void {
 it('refuses a doctor who does not take online consultations', function (): void {
     $this->doctor->doctorProfile->update(['accepts_online_consultations' => false]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.consultations.store'), consultationPayload())
         ->assertStatus(422)
         ->assertJsonValidationErrors('doctor_id');
 });
 
 it('requires a description long enough to act on', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.consultations.store'), consultationPayload(['symptoms' => 'itchy']))
         ->assertStatus(422)
         ->assertJsonValidationErrors('symptoms');
@@ -102,20 +102,20 @@ it('caps the number of photographs', function (): void {
         ->map(fn (int $index): UploadedFile => UploadedFile::fake()->image("photo-{$index}.jpg"))
         ->all();
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.consultations.store'), consultationPayload(['photos' => $photos]))
         ->assertStatus(422)
         ->assertJsonValidationErrors('photos');
 });
 
 it('keeps the consultation closed to the doctor until the payment is verified', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.consultations.store'), consultationPayload())
         ->assertCreated();
 
     $consultation = Consultation::firstOrFail();
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.consultations.receipt.store', $consultation), [
             'receipt' => UploadedFile::fake()->image('receipt.jpg'),
         ])
@@ -124,7 +124,7 @@ it('keeps the consultation closed to the doctor until the payment is verified', 
     // Still not answerable: a receipt was uploaded but nobody has confirmed it.
     expect($consultation->refresh()->status)->toBe(ConsultationStatus::PendingPayment);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.payments.verify', Payment::firstOrFail()))
         ->assertOk();
 
@@ -138,7 +138,7 @@ it('marks the thread replied when the doctor answers', function (): void {
         'status' => ConsultationStatus::AwaitingReply,
     ]);
 
-    $this->actingAs($this->doctor)
+    $this->actingAsPortal($this->doctor)
         ->postJson(route('api.v1.consultations.messages.store', $consultation), [
             'message' => 'That looks like contact dermatitis. Start with a mild steroid cream.',
         ])
@@ -158,7 +158,7 @@ it('reopens the thread when the patient writes back', function (): void {
         'status' => ConsultationStatus::Replied,
     ]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.consultations.messages.store', $consultation), [
             'message' => 'The cream helped but the patch came back this morning.',
         ])
@@ -173,7 +173,7 @@ it('hides a consultation from a doctor who is not on it', function (): void {
         'doctor_id' => $this->doctor->id,
     ]);
 
-    $this->actingAs(User::factory()->doctor()->create())
+    $this->actingAsPortal(User::factory()->doctor()->create())
         ->getJson(route('api.v1.consultations.show', $consultation))
         ->assertForbidden();
 });
@@ -186,11 +186,11 @@ it('keeps symptoms away from the secretary', function (): void {
 
     $secretary = User::factory()->secretary($this->doctor)->create();
 
-    $this->actingAs($secretary)
+    $this->actingAsPortal($secretary)
         ->getJson(route('api.v1.consultations.show', $consultation))
         ->assertForbidden();
 
-    $this->actingAs($secretary)
+    $this->actingAsPortal($secretary)
         ->getJson(route('api.v1.consultations.index'))
         ->assertOk()
         ->assertJsonCount(0, 'data');
@@ -200,7 +200,7 @@ it('lists only the caller own consultations', function (): void {
     Consultation::factory()->create(['patient_id' => $this->patient->id, 'doctor_id' => $this->doctor->id]);
     Consultation::factory()->create();
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->getJson(route('api.v1.consultations.index'))
         ->assertOk()
         ->assertJsonCount(1, 'data');

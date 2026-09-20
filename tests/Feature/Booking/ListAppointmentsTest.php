@@ -25,7 +25,7 @@ beforeEach(function (): void {
     };
 
     $this->listedIds = function (User $viewer, array $query): array {
-        return $this->actingAs($viewer)
+        return $this->actingAsPortal($viewer)
             ->getJson(route('api.v1.appointments.index', [...$query, 'per_page' => 100]))
             ->assertOk()
             ->json('data.*.id');
@@ -104,7 +104,7 @@ it('lets an admin narrow the list to one doctor', function (): void {
 });
 
 it('rejects invalid filters', function (array $query, string $field): void {
-    $this->actingAs($this->doctor)
+    $this->actingAsPortal($this->doctor)
         ->getJson(route('api.v1.appointments.index', $query))
         ->assertUnprocessable()
         ->assertJsonValidationErrors($field);
@@ -117,7 +117,7 @@ it('rejects invalid filters', function (array $query, string $field): void {
 ]);
 
 it('refuses a doctor filter from anyone but an admin', function (): void {
-    $this->actingAs($this->doctor)
+    $this->actingAsPortal($this->doctor)
         ->getJson(route('api.v1.appointments.index', ['doctor_id' => User::factory()->doctor()->create()->id]))
         ->assertUnprocessable()
         ->assertJsonValidationErrors('doctor_id');

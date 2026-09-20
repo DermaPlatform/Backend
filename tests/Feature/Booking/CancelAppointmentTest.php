@@ -30,7 +30,7 @@ beforeEach(function (): void {
 });
 
 it('cancels a booking outside the notice window', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.cancel', $this->appointment), ['reason' => 'Travelling.'])
         ->assertOk()
         ->assertJsonPath('data.status', AppointmentStatus::Cancelled->value);
@@ -56,7 +56,7 @@ it('frees the slot immediately for the next patient', function (): void {
 
     expect($slotsBefore['10:00']['available'])->toBeFalse();
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.cancel', $this->appointment))
         ->assertOk();
 
@@ -73,14 +73,14 @@ it('flags a refund when the money was already verified', function (): void {
         'status' => PaymentStatus::Verified,
     ]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.cancel', $this->appointment))
         ->assertOk()
         ->assertJsonPath('data.refund_required', true);
 });
 
 it('does not flag a refund when nothing was paid', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.cancel', $this->appointment))
         ->assertOk()
         ->assertJsonPath('data.refund_required', false);
@@ -89,7 +89,7 @@ it('does not flag a refund when nothing was paid', function (): void {
 it('refuses a cancellation inside the notice window', function (): void {
     $this->travelTo($this->slotStart->subHours(2));
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.cancel', $this->appointment))
         ->assertStatus(422)
         ->assertJsonValidationErrors('start_at');
@@ -100,18 +100,18 @@ it('refuses a cancellation inside the notice window', function (): void {
 it('refuses to cancel an appointment that is already closed', function (): void {
     $this->appointment->update(['status' => AppointmentStatus::Cancelled]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.cancel', $this->appointment))
         ->assertStatus(422)
         ->assertJsonValidationErrors('status');
 });
 
 it('refuses a cancellation by anyone but the booking patient', function (): void {
-    $this->actingAs(User::factory()->patient()->create())
+    $this->actingAsPortal(User::factory()->patient()->create())
         ->postJson(route('api.v1.appointments.cancel', $this->appointment))
         ->assertForbidden();
 
-    $this->actingAs($this->doctor)
+    $this->actingAsPortal($this->doctor)
         ->postJson(route('api.v1.appointments.cancel', $this->appointment))
         ->assertForbidden();
 });
