@@ -13,14 +13,20 @@ use Carbon\CarbonImmutable;
  * B1 — slot generation. Exercised directly rather than through HTTP, because
  * this is arithmetic and a failure here should point at the arithmetic.
  *
- * Every date below is fixed. A relative date makes the suite depend on the
- * day it happens to run.
+ * Every date below is fixed, and the clock is frozen to match. Fixing the
+ * date alone was not enough: the service hides slots that have already passed,
+ * so once the real calendar reached that date these tests began failing on the
+ * time of day they happened to run at, and after it they failed outright.
+ * Freezing the clock before the shift opens makes every slot a future one,
+ * whatever day the suite is actually run.
  */
 beforeEach(function (): void {
     $this->service = app(AvailabilityService::class);
 
     // A Sunday, the first working day of the week in the clinic timezone.
     $this->date = CarbonImmutable::parse('2026-09-20');
+
+    $this->travelTo(CarbonImmutable::parse('2026-09-20 07:00', config('nadara.clinic_timezone')));
 
     $this->doctor = User::factory()->doctor()->create();
 
