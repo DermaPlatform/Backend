@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Nadara API v1",
-    "description": "Nadara dermatology clinic platform — Sprint 1 (auth) + Sprint 2 (catalog, profile, admin).\n\nSetup:\n1. Run `php artisan serve` in the Backend folder.\n2. Run `php artisan migrate:fresh --seed` once to get the demo accounts.\n3. Send any of the Login requests — the token is saved automatically into the {{token}} variable.\n\nDemo accounts (password for all: `password`):\n- admin@nadara.test\n- doctor@nadara.test\n- patient@nadara.test",
+    "description": "Nadara clinic platform API.\n\nSign-in is split by portal: each front end has a door of its own, and the token it\nhands back is stamped with that portal. A token minted at one door does not open\nanother, so \"Login as PATIENT\" then calling an admin route is a 403, not a 200.\n\nPortals:\n- Patient      POST /auth/login          (also /auth/register)\n- Clinic       POST /clinic/auth/login   (doctor and secretary share it)\n- Back office  POST /admin/auth/login\n\nShared, whichever door opened the session: /auth/me, /auth/logout,\n/auth/logout-all and /auth/reset-password. Each portal has its own\nforgot-password, and the reset link follows the account owner, not the endpoint.\n\nSetup:\n1. Run `php artisan serve` in the Backend folder.\n2. Run `php artisan migrate:fresh --seed` once to get the demo accounts.\n3. Send the Login request for the portal you want. The token is saved into\n   the {{token}} variable automatically, replacing whatever was there.\n\nDemo accounts (password: `password`):\n- admin@nadara.test      back office\n- doctor@nadara.test     clinic\n- secretary@nadara.test  clinic\n- patient@nadara.test    patient\n\nThe Arabic demo set from DemoSeeder uses the password `nadara2026`:\n- layla@nadara.test      clinic (doctor)\n- sana@nadara.test       clinic (secretary)\n- sara.demo@nadara.test  patient (and five more *.demo@nadara.test)\n\nFolder 6 checks the split itself: the same correct password is rejected at the\nwrong door, and it reads exactly like a wrong password so probing reveals nothing.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -127,7 +127,7 @@
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "pm.collectionVariables.set('token', pm.response.json().data.token);",
-                  "console.log('Logged in as admin');"
+                  "console.log('Logged in as admin through the back office portal');"
                 ]
               }
             }
@@ -144,11 +144,12 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/auth/login",
+              "raw": "{{base_url}}/admin/auth/login",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
+                "admin",
                 "auth",
                 "login"
               ]
@@ -169,7 +170,7 @@
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "pm.collectionVariables.set('token', pm.response.json().data.token);",
-                  "console.log('Logged in as patient');"
+                  "console.log('Logged in as patient through the patient portal');"
                 ]
               }
             }
@@ -209,8 +210,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "pm.collectionVariables.set('token', pm.response.json().data.token);",
-                  "console.log('Logged in as doctor');"
+                  "console.log('Logged in as doctor through the clinic portal');"
                 ]
               }
             }
@@ -227,11 +229,12 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/auth/login",
+              "raw": "{{base_url}}/clinic/auth/login",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
+                "clinic",
                 "auth",
                 "login"
               ]
@@ -239,6 +242,50 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"doctor@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login as SECRETARY",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('role is secretary', () => pm.expect(pm.response.json().data.user.role).to.eql('secretary'));",
+                  "pm.collectionVariables.set('token', pm.response.json().data.token);",
+                  "console.log('Logged in as secretary through the clinic portal');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/clinic/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clinic",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"secretary@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
             }
           }
         },
@@ -260,7 +307,7 @@
           }
         },
         {
-          "name": "Forgot password",
+          "name": "Forgot password (patient portal)",
           "request": {
             "auth": {
               "type": "noauth"
@@ -285,6 +332,92 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"patient@nadara.test\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Forgot password (clinic portal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('answer does not say whether the address is registered', () =>",
+                  "  pm.expect(pm.response.json().message).to.include('If an account matches'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/clinic/auth/forgot-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clinic",
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"doctor@nadara.test\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Forgot password (back office portal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('answer does not say whether the address is registered', () =>",
+                  "  pm.expect(pm.response.json().message).to.include('If an account matches'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/auth/forgot-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@nadara.test\"\n}"
             }
           }
         },
@@ -2007,7 +2140,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
-                  "console.log('Run \"Login as PATIENT\" first for this to be meaningful.');"
+                  "console.log('Run \"Login as PATIENT\" first. The token carries the patient portal, so it is turned away before the role is even read.');"
                 ]
               }
             }
@@ -2116,7 +2249,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('403', () => pm.response.to.have.status(403));"
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "console.log('Receipt review is staff work: a patient token is refused at the door, before the policy runs.');"
                 ]
               }
             }
@@ -2150,6 +2284,185 @@
               }
             }
           ]
+        },
+        {
+          "name": "Doctor at the PATIENT door (expect 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                  "pm.test('reads exactly like a wrong password', () =>",
+                  "  pm.expect(pm.response.json().errors.email[0])",
+                  "    .to.eql('These credentials do not match our records.'));",
+                  "console.log('The password is correct. Only the portal is wrong, and the answer never says so.');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"doctor@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Patient at the CLINIC door (expect 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                  "pm.test('reads exactly like a wrong password', () =>",
+                  "  pm.expect(pm.response.json().errors.email[0])",
+                  "    .to.eql('These credentials do not match our records.'));",
+                  "console.log('The password is correct. Only the portal is wrong, and the answer never says so.');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/clinic/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clinic",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"patient@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Patient at the BACK OFFICE door (expect 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                  "pm.test('reads exactly like a wrong password', () =>",
+                  "  pm.expect(pm.response.json().errors.email[0])",
+                  "    .to.eql('These credentials do not match our records.'));",
+                  "console.log('The password is correct. Only the portal is wrong, and the answer never says so.');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"patient@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin at the CLINIC door (expect 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                  "pm.test('reads exactly like a wrong password', () =>",
+                  "  pm.expect(pm.response.json().errors.email[0])",
+                  "    .to.eql('These credentials do not match our records.'));",
+                  "console.log('The password is correct. Only the portal is wrong, and the answer never says so.');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/clinic/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clinic",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            }
+          }
         }
       ]
     }

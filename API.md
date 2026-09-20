@@ -4,6 +4,8 @@
 
 الأقسام من 1 إلى 11 تغطّي المصادقة. **القسم 12 يغطّي الحجز والدفع والاستشارات (سبرنت 3).**
 
+> **تحديث:** تسجيل الدخول انفصل لثلاث بوابات، باب لكل واجهة. شوف §2.1 قبل ما تربط أي شاشة دخول.
+
 ---
 
 ## 1. أساسيات
@@ -55,7 +57,36 @@ register أو login  →  بيرجّعوا token
 - كل جهاز بياخد توكن مستقل عبر `device_name`. تسجيل الخروج من جهاز ما بيأثر على الباقي.
 - **بعد إعادة تعيين كلمة السر بتتلغى كل التوكنات** — المستخدم لازم يسجّل دخول من جديد على كل أجهزته.
 
-### وين نخزّن التوكن؟
+### 2.1 بوابات الدخول
+
+الدور بيجاوب "مين هذا الشخص"، والبوابة بتجاوب "من أي واجهة فتحت الجلسة". الاثنين منفصلين عمداً.
+
+عنا **أربع أدوار** و**ثلاث بوابات**، لأن الطبيب وسكرتيره بيتشاركوا لوحة العيادة نفسها:
+
+| البوابة | الأدوار | مسار الدخول |
+|---|---|---|
+| `patient` | `patient` | `POST /api/v1/auth/login` |
+| `clinic` | `doctor` · `secretary` | `POST /api/v1/clinic/auth/login` |
+| `admin` | `admin` | `POST /api/v1/admin/auth/login` |
+
+**كل توكن بينختم ببوابته** (Sanctum ability بصيغة `portal:<name>`)، فجلسة انفتحت من تطبيق المرضى ما بتشتغل على الباك أوفيس حتى لو تسرّب التوكن.
+
+```
+POST /auth/login          →  token عليه ability: portal:patient
+POST /clinic/auth/login   →  token عليه ability: portal:clinic
+POST /admin/auth/login    →  token عليه ability: portal:admin
+```
+
+**اللي بيفرق مع البوابة:** `login` و `forgot-password` بس.
+**اللي مشترك للكل:** `me` و `logout` و `logout-all` و `reset-password` — نقطة واحدة بتشتغل مع أي توكن.
+
+> ⚠️ **التسجيل الذاتي على بوابة المرضى وحدها.** الطبيب والسكرتير والأدمن حساباتهم بتتعمل إلهم، ما في `register` على بوابتهم.
+
+**اللي لازم يعمله الفرونت:** خزّن مفتاح البوابة جنب التوكن، وخلّي كل واجهة تضرب باب بوابتها هي. لو بعتّ توكن بوابة على مسار بوابة تانية بيرجع `403` (§3).
+
+---
+
+### 2.2 وين نخزّن التوكن؟
 
 | الواجهة | التخزين |
 |---|---|
@@ -89,6 +120,22 @@ register أو login  →  بيرجّعوا token
 ```
 
 بيرجع لما التوكن مفقود أو خاطئ أو ملغي. **المعالجة الصحيحة:** امسح التوكن المخزّن ووجّه المستخدم لصفحة تسجيل الدخول.
+
+### 403 — توكن من بوابة تانية
+
+```json
+{ "message": "Invalid ability provided." }
+```
+
+بيرجع لما التوكن صالح بس صادر عن بوابة ما بتفتح هذا المسار — مثلاً توكن مريض على `/admin/categories`. **المعالجة:** ما تمسح التوكن (الجلسة شغالة بمكانها الصح)، وجّه المستخدم لباب البوابة المطلوبة.
+
+ولما المسار محمي بدور كمان بيرجع `403` بنص تاني:
+
+```json
+{ "message": "Forbidden. You do not have access to this resource." }
+```
+
+---
 
 ### 429 — تجاوز الحد
 
@@ -180,8 +227,12 @@ POST /api/v1/auth/register
 
 ### 4.2 تسجيل الدخول
 
+**ثلاثة مسارات، نفس الـ Body ونفس شكل الرد تماماً:**
+
 ```
-POST /api/v1/auth/login
+POST /api/v1/auth/login            ← المرضى
+POST /api/v1/clinic/auth/login     ← الأطباء والسكرتارية
+POST /api/v1/admin/auth/login      ← الأدمن
 ```
 
 **Body**
@@ -198,6 +249,8 @@ POST /api/v1/auth/login
 
 **200 OK** — نفس شكل رد التسجيل، بس `"message": "Login successful."`
 
+التوكن الراجع مختوم ببوابة المسار اللي ضربته، وما بيفتح غيرها.
+
 **422** — بيانات خاطئة:
 
 ```json
@@ -207,7 +260,18 @@ POST /api/v1/auth/login
 }
 ```
 
-> الخطأ دائماً تحت مفتاح `email` وبنفس النص، سواء الإيميل غير موجود أو كلمة السر خاطئة. هذا **مقصود** لمنع كشف الحسابات المسجّلة. اعرضه كرسالة عامة فوق الفورم، مش تحت حقل الإيميل.
+> الخطأ دائماً تحت مفتاح `email` وبنفس النص في **ثلاث حالات**: الإيميل غير موجود، كلمة السر خاطئة، **أو الحساب بيتبع بوابة تانية**. هذا **مقصود** — لو رجّعنا "هذا الحساب بيدخل من مكان تاني" بنكون دلّينا المهاجم على وين يهاجم. اعرضه كرسالة عامة فوق الفورم، مش تحت حقل الإيميل.
+
+**حالات 422 التانية:**
+
+| الحالة | الرسالة |
+|---|---|
+| حساب معطّل (`is_active = false`) | `This account has been deactivated. Please contact the clinic.` |
+| سكرتير غير مربوط بطبيب | نفس رسالة البيانات الخاطئة |
+
+> الحساب المعطّل بينفحص **بعد** التأكد من كلمة السر، فالرسالة بتوصل صاحب الحساب لا أي حدا بيجرّب إيميلات.
+>
+> الطبيب اللي انتهى اشتراكه **بيقدر يسجّل دخول** — لازم يفوت عشان يجدّد. الاشتراك بينفحص عند كل إجراء لا عند الباب.
 
 **429** — بعد 5 محاولات فاشلة (شوف §7).
 
@@ -240,7 +304,7 @@ GET /api/v1/auth/me
 }
 ```
 
-استخدمه عند إقلاع التطبيق للتحقق إن التوكن المخزّن لسا صالح واسترجاع بيانات المستخدم.
+استخدمه عند إقلاع التطبيق للتحقق إن التوكن المخزّن لسا صالح واسترجاع بيانات المستخدم. بيشتغل مع توكن أي بوابة.
 
 `birth_date` و `age` و `gender` بيانات سريرية: بتظهر لصاحب الحساب وللدكتور والأدمن فقط، وبتنحذف من الرد لأي مستخدم تاني.
 
@@ -252,7 +316,7 @@ GET /api/v1/auth/me
 POST /api/v1/auth/logout
 ```
 
-🔒 يتطلب `Authorization`. بيلغي **التوكن الحالي فقط** — باقي الأجهزة بتضل مسجّلة دخول.
+🔒 يتطلب `Authorization`. بيلغي **التوكن الحالي فقط** — باقي الأجهزة بتضل مسجّلة دخول. مسار واحد لكل البوابات.
 
 **200 OK**
 
@@ -282,8 +346,12 @@ POST /api/v1/auth/logout-all
 
 ### 4.6 طلب رابط إعادة تعيين كلمة السر
 
+**باب لكل بوابة، زي تسجيل الدخول:**
+
 ```
-POST /api/v1/auth/forgot-password
+POST /api/v1/auth/forgot-password          ← المرضى
+POST /api/v1/clinic/auth/forgot-password   ← الأطباء والسكرتارية
+POST /api/v1/admin/auth/forgot-password    ← الأدمن
 ```
 
 **Body**
@@ -300,7 +368,7 @@ POST /api/v1/auth/forgot-password
 }
 ```
 
-> بيرجع **نفس الرد بالضبط** سواء الحساب موجود أو لا. لا تحاول تستنتج من الرد إذا الإيميل مسجّل — اعرض الرسالة زي ما هي.
+> بيرجع **نفس الرد بالضبط** في كل الحالات: الحساب موجود، أو مش موجود، **أو موجود بس بيتبع بوابة تانية**. بالحالة الأخيرة ما بينبعت إشي بالمرة. لا تحاول تستنتج من الرد إذا الإيميل مسجّل — اعرض الرسالة زي ما هي.
 
 **429** — لو طلب رابط جديد قبل مرور 60 ثانية:
 
@@ -315,6 +383,8 @@ POST /api/v1/auth/forgot-password
 ```
 POST /api/v1/auth/reset-password
 ```
+
+**نقطة واحدة لكل الأدوار** — الرمز اللي بالرابط بيعرّف صاحبه، فما في داعي لثلاث نسخ. اللي بيفرق هو **مسار الصفحة** اللي بيوصلها الرابط بالإيميل (§8).
 
 **Body**
 
@@ -354,7 +424,7 @@ POST /api/v1/auth/reset-password
 | `name` | `string` | |
 | `email` | `string` | دائماً حروف صغيرة |
 | `phone` | `string \| null` | |
-| `role` | `"patient" \| "doctor" \| "admin"` | |
+| `role` | `"patient" \| "doctor" \| "secretary" \| "admin"` | أربع أدوار، ثلاث بوابات (§2.1) |
 | `specialty` | `string` | **بيظهر فقط لما `role === "doctor"`** — غير موجود بالمرة لغيرهم |
 | `email_verified` | `boolean` | حالياً `false` دائماً، التحقق مش مفعّل |
 | `created_at` | `string` | ISO 8601 |
@@ -362,7 +432,8 @@ POST /api/v1/auth/reset-password
 كلمة السر ما بتظهر أبداً بأي رد.
 
 ```ts
-type UserRole = 'patient' | 'doctor' | 'admin';
+type UserRole = 'patient' | 'doctor' | 'secretary' | 'admin';
+type Portal = 'patient' | 'clinic' | 'admin';
 
 interface User {
   id: number;
@@ -382,6 +453,8 @@ interface AuthPayload {
   expires_at: string | null;
 }
 ```
+
+> البوابة **مش موجودة بالرد** — إنت بتعرفها أصلاً لأنك اخترت المسار اللي ضربته. خزّنها بنفسك جنب التوكن.
 
 ---
 
@@ -404,9 +477,11 @@ interface AuthPayload {
 
 طبقتين:
 
-**أ. حد عام لكل IP** — 20 طلب/دقيقة على `register`, `login`, `forgot-password`, `reset-password` مجتمعة. تجاوزه بيرجّع `429` مع هيدر `Retry-After`.
+**أ. حد عام لكل IP** — 20 طلب/دقيقة على `register`, `login`, `forgot-password`, `reset-password` مجتمعة، **على البوابات الثلاث كلها**. تجاوزه بيرجّع `429` مع هيدر `Retry-After`.
 
-**ب. حد خاص بتسجيل الدخول** — 5 محاولات **فاشلة** لكل تركيبة (إيميل + IP)، ثم قفل 60 ثانية. أي محاولة ناجحة بتصفّر العدّاد.
+**ب. حد خاص بتسجيل الدخول** — 5 محاولات **فاشلة** لكل تركيبة (إيميل + IP + **بوابة**)، ثم قفل 60 ثانية. أي محاولة ناجحة بتصفّر العدّاد.
+
+> البوابة جزء من مفتاح العدّاد عمداً: محاولات فاشلة على باب المرضى ما بتقفل الطبيب برّا لوحة العيادة.
 
 اقرأ عدد الثواني من نص الرسالة أو من `Retry-After` واعمل عدّاد تنازلي بالواجهة.
 
@@ -415,10 +490,10 @@ interface AuthPayload {
 ## 8. تدفق نسيان كلمة السر — دور الفرونت
 
 ```
-[1] المستخدم يدخل إيميله  →  POST /auth/forgot-password
+[1] المستخدم يدخل إيميله  →  POST /<portal>/auth/forgot-password
                                       ↓
 [2] الباك إند يبعت إيميل فيه رابط:
-    ${FRONTEND_URL}/reset-password?token=<TOKEN>&email=<EMAIL>
+    ${PORTAL_FRONTEND_URL}/reset-password?token=<TOKEN>&email=<EMAIL>
                                       ↓
 [3] المستخدم يضغط الرابط  →  يفتح صفحة بالفرونت
                                       ↓
@@ -426,18 +501,32 @@ interface AuthPayload {
                                       ↓
 [5] يعرض فورم كلمة سر جديدة + تأكيدها
                                       ↓
-[6] POST /auth/reset-password مع القيم الأربعة
+[6] POST /auth/reset-password مع القيم الأربعة   ← مسار واحد لكل البوابات
                                       ↓
-[7] نجاح  →  وجّه لصفحة تسجيل الدخول
+[7] نجاح  →  وجّه لباب البوابة اللي بيتبعها الحساب
 ```
 
 **المطلوب منك:**
 
-1. أنشئ مسار `/reset-password` بالفرونت.
+1. أنشئ مسار `reset-password` تحت **كل بوابة** بالفرونت.
 2. اقرأ `token` و `email` من الـ query params ومرّرهم كما هم (`email` مُرمّز URL-encoded، فك ترميزه قبل الإرسال — معظم أدوات التوجيه بتعمل هذا تلقائياً).
 3. الـ `token` صالح **60 دقيقة** ويُستهلك مرة واحدة.
 
-**الإعداد المطلوب بالـ backend:** المتغيّر `FRONTEND_URL` في `.env` لازم يطابق دومين الفرونت (حالياً `http://localhost:5173`).
+### أي واجهة بيوديها الرابط؟
+
+**دور صاحب الحساب هو اللي بيقرّر، مش المسار اللي انطلب منه.** يعني لو حدا طلب رابط لطبيب من باب المرضى، بينبعت ولا إشي أصلاً (§4.6)؛ ولو انطلب من باب العيادة، الرابط بيروح على واجهة العيادة حتى لو الطلب انبعت من مكان تاني.
+
+**الإعداد المطلوب بالـ `.env`:**
+
+```
+PATIENT_FRONTEND_URL=https://app.nadara.com
+CLINIC_FRONTEND_URL=https://app.nadara.com/clinic
+ADMIN_FRONTEND_URL=https://app.nadara.com/admin
+```
+
+أي متغيّر منهم لو انترك فاضي بيرجع لـ `FRONTEND_URL` العام — يعني **كل الروابط بتنزل على واجهة المرضى**، والطبيب بيلاقي حاله ببابهم بعد ما يحفظ كلمة السر. اضبط الثلاثة.
+
+> الواجهات الثلاث حالياً تطبيق واحد، فالثلاث قيم على نفس الدومين بمسارات مختلفة. لو انفصلوا لتطبيقات مستقلة بكرا، بتتغيّر القيم بس ولا شي بالكود.
 
 ---
 
@@ -446,10 +535,24 @@ interface AuthPayload {
 ```js
 const BASE_URL = 'http://localhost:8000/api/v1';
 
+// البوابة بتنخزن جنب التوكن: بتحدد لأي باب نرجّع المستخدم عند الخروج أو عند 403
+const PORTALS = {
+  patient: { login: '/auth/login', forgotPassword: '/auth/forgot-password' },
+  clinic: { login: '/clinic/auth/login', forgotPassword: '/clinic/auth/forgot-password' },
+  admin: { login: '/admin/auth/login', forgotPassword: '/admin/auth/forgot-password' },
+};
+
 const tokenStore = {
   get: () => localStorage.getItem('auth_token'),
-  set: (token) => localStorage.setItem('auth_token', token),
-  clear: () => localStorage.removeItem('auth_token'),
+  set: (token, portal) => {
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('auth_portal', portal);
+  },
+  portal: () => localStorage.getItem('auth_portal'),
+  clear: () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_portal');
+  },
 };
 
 class ApiError extends Error {
@@ -489,6 +592,12 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
     if (response.status === 401) {
       tokenStore.clear();
     }
+
+    // 403 مع هذا النص = توكن بوابة تانية. الجلسة سليمة، بس المسار مش إلها —
+    // وجّه لباب البوابة المطلوبة ولا تمسح إشي.
+    if (response.status === 403 && data?.message === 'Invalid ability provided.') {
+      // handleWrongPortal();
+    }
     throw new ApiError(response.status, data);
   }
 
@@ -496,23 +605,25 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
 }
 
 export const auth = {
+  // التسجيل الذاتي ببوابة المرضى وحدها
   register: async (payload) => {
     const { data } = await api('/auth/register', {
       method: 'POST',
       body: { ...payload, device_name: 'web' },
       auth: false,
     });
-    tokenStore.set(data.token);
+    tokenStore.set(data.token, 'patient');
     return data.user;
   },
 
-  login: async (email, password) => {
-    const { data } = await api('/auth/login', {
+  /** @param {'patient'|'clinic'|'admin'} portal */
+  login: async (email, password, portal = 'patient') => {
+    const { data } = await api(PORTALS[portal].login, {
       method: 'POST',
       body: { email, password, device_name: 'web' },
       auth: false,
     });
-    tokenStore.set(data.token);
+    tokenStore.set(data.token, portal);
     return data.user;
   },
 
@@ -535,9 +646,10 @@ export const auth = {
     }
   },
 
-  forgotPassword: (email) =>
-    api('/auth/forgot-password', { method: 'POST', body: { email }, auth: false }),
+  forgotPassword: (email, portal = 'patient') =>
+    api(PORTALS[portal].forgotPassword, { method: 'POST', body: { email }, auth: false }),
 
+  // مسار واحد لكل البوابات — الرمز بيعرّف صاحبه
   resetPassword: (payload) =>
     api('/auth/reset-password', { method: 'POST', body: payload, auth: false }),
 };
@@ -570,20 +682,33 @@ async function bootstrapSession() {
 CORS_ALLOWED_ORIGINS=http://localhost:5173,https://app.nadara.com
 ```
 
+لو الواجهات الثلاث انفصلت لدومينات مستقلة، ضيفهم كلهم هون مفصولين بفواصل.
+
 `supports_credentials` مطفأ لأن المصادقة بالتوكنات — **لا تستخدم `withCredentials: true`** ولا ترسل كوكيز.
 
 ---
 
 ## 11. جدول مرجعي سريع
 
+**خاص ببوابة:**
+
+| الطريقة | المسار | البوابة | نجاح |
+|---|---|:---:|---|
+| `POST` | `/api/v1/auth/register` | `patient` | `201` |
+| `POST` | `/api/v1/auth/login` | `patient` | `200` |
+| `POST` | `/api/v1/auth/forgot-password` | `patient` | `200` |
+| `POST` | `/api/v1/clinic/auth/login` | `clinic` | `200` |
+| `POST` | `/api/v1/clinic/auth/forgot-password` | `clinic` | `200` |
+| `POST` | `/api/v1/admin/auth/login` | `admin` | `200` |
+| `POST` | `/api/v1/admin/auth/forgot-password` | `admin` | `200` |
+
+**مشترك لكل البوابات:**
+
 | الطريقة | المسار | مصادقة | نجاح |
 |---|---|:---:|---|
-| `POST` | `/api/v1/auth/register` | — | `201` |
-| `POST` | `/api/v1/auth/login` | — | `200` |
 | `GET` | `/api/v1/auth/me` | 🔒 | `200` |
 | `POST` | `/api/v1/auth/logout` | 🔒 | `200` |
 | `POST` | `/api/v1/auth/logout-all` | 🔒 | `200` |
-| `POST` | `/api/v1/auth/forgot-password` | — | `200` |
 | `POST` | `/api/v1/auth/reset-password` | — | `200` |
 
 ---
@@ -745,7 +870,9 @@ POST /payments/{id}/verify           → الموعد يصير approved
 `verify` ← الموعد يصير `approved` (أو الاستشارة `awaiting_reply`).
 `reject` ← يتطلب `reason`، والموعد يعود `pending_payment` **بمهلة جديدة** ليرسل المريض إيصالاً صحيحاً.
 
-الصلاحية بالـ Policy لا بالدور: الأدمن، أو طبيب هذا الموعد، أو سكرتيره حصراً.
+**بوابتان فقط:** توكن `clinic` أو `admin`. توكن المريض يُرَدّ بـ `403` (`Invalid ability provided.`) قبل أن تُستشار الـ Policy أصلاً.
+
+وبعد البوابة تأتي الصلاحية بالـ Policy لا بالدور: الأدمن، أو طبيب هذا الموعد، أو سكرتيره حصراً.
 
 ---
 
@@ -792,8 +919,8 @@ POST /payments/{id}/verify           → الموعد يصير approved
 | `POST` | `/api/v1/appointments/{id}/cancel` | 🔒 مريض | `200` |
 | `POST` | `/api/v1/appointments/{id}/payment-receipt` | 🔒 مريض | `201` |
 | `GET` | `/api/v1/appointments/{id}/payment-receipt` | 🔒 | `200` (ملف) |
-| `POST` | `/api/v1/payments/{id}/verify` | 🔒 طاقم | `200` |
-| `POST` | `/api/v1/payments/{id}/reject` | 🔒 طاقم | `200` |
+| `POST` | `/api/v1/payments/{id}/verify` | 🔒 `clinic`/`admin` | `200` |
+| `POST` | `/api/v1/payments/{id}/reject` | 🔒 `clinic`/`admin` | `200` |
 | `GET` | `/api/v1/consultations` | 🔒 | `200` |
 | `POST` | `/api/v1/consultations` | 🔒 مريض | `201` |
 | `GET` | `/api/v1/consultations/{id}` | 🔒 | `200` |
