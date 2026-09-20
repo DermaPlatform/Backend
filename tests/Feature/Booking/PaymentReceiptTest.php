@@ -31,7 +31,7 @@ function receiptFile(): UploadedFile
 }
 
 it('accepts a receipt and moves the appointment into review', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), [
             'receipt' => receiptFile(),
             'method' => 'bank_transfer',
@@ -48,7 +48,7 @@ it('accepts a receipt and moves the appointment into review', function (): void 
 });
 
 it('stores the receipt on the private disk, never the public one', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), [
             'receipt' => receiptFile(),
         ])
@@ -61,7 +61,7 @@ it('stores the receipt on the private disk, never the public one', function (): 
 });
 
 it('never exposes the stored receipt path in the response', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), [
             'receipt' => receiptFile(),
         ])
@@ -71,13 +71,13 @@ it('never exposes the stored receipt path in the response', function (): void {
 });
 
 it('issues a sequential receipt number for the year', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()])
         ->assertCreated();
 
     $second = Appointment::factory()->pendingPayment()->create(['patient_id' => $this->patient->id]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $second), ['receipt' => receiptFile()])
         ->assertCreated();
 
@@ -88,7 +88,7 @@ it('issues a sequential receipt number for the year', function (): void {
 });
 
 it('rejects a file type that is not a receipt', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), [
             'receipt' => UploadedFile::fake()->create('malware.exe', 12),
         ])
@@ -97,7 +97,7 @@ it('rejects a file type that is not a receipt', function (): void {
 });
 
 it('rejects a receipt larger than the limit', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), [
             'receipt' => UploadedFile::fake()->create('huge.pdf', config('nadara.uploads.receipt_max_kb') + 1),
         ])
@@ -106,7 +106,7 @@ it('rejects a receipt larger than the limit', function (): void {
 });
 
 it('refuses a receipt for someone else appointment', function (): void {
-    $this->actingAs(User::factory()->patient()->create())
+    $this->actingAsPortal(User::factory()->patient()->create())
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()])
         ->assertForbidden();
 });
@@ -114,18 +114,18 @@ it('refuses a receipt for someone else appointment', function (): void {
 it('refuses a second receipt once the appointment left pending payment', function (): void {
     $this->appointment->update(['status' => AppointmentStatus::Approved]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()])
         ->assertStatus(422);
 });
 
 it('approves the appointment when staff verify the payment', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()]);
 
     $payment = Payment::firstOrFail();
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.payments.verify', $payment))
         ->assertOk()
         ->assertJsonPath('data.status', PaymentStatus::Verified->value);
@@ -135,10 +135,10 @@ it('approves the appointment when staff verify the payment', function (): void {
 });
 
 it('returns the appointment to pending payment when staff reject the receipt', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()]);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.payments.reject', Payment::firstOrFail()), ['reason' => 'Slip is unreadable.'])
         ->assertOk();
 
@@ -149,20 +149,20 @@ it('returns the appointment to pending payment when staff reject the receipt', f
 });
 
 it('requires a reason when rejecting', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()]);
 
-    $this->actingAs($this->admin)
+    $this->actingAsPortal($this->admin)
         ->postJson(route('api.v1.payments.reject', Payment::firstOrFail()), [])
         ->assertStatus(422)
         ->assertJsonValidationErrors('reason');
 });
 
 it('lets the doctor of the appointment review the payment', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()]);
 
-    $this->actingAs($this->doctor)
+    $this->actingAsPortal($this->doctor)
         ->postJson(route('api.v1.payments.verify', Payment::firstOrFail()))
         ->assertOk();
 });
@@ -170,10 +170,10 @@ it('lets the doctor of the appointment review the payment', function (): void {
 it('lets the secretary of that doctor review the payment', function (): void {
     $secretary = User::factory()->secretary($this->doctor)->create();
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()]);
 
-    $this->actingAs($secretary)
+    $this->actingAsPortal($secretary)
         ->postJson(route('api.v1.payments.verify', Payment::firstOrFail()))
         ->assertOk();
 });
@@ -181,19 +181,19 @@ it('lets the secretary of that doctor review the payment', function (): void {
 it('refuses a secretary who works for a different doctor', function (): void {
     $secretary = User::factory()->secretary(User::factory()->doctor()->create())->create();
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()]);
 
-    $this->actingAs($secretary)
+    $this->actingAsPortal($secretary)
         ->postJson(route('api.v1.payments.verify', Payment::firstOrFail()))
         ->assertForbidden();
 });
 
 it('refuses a patient trying to verify their own payment', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.receipt.store', $this->appointment), ['receipt' => receiptFile()]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.payments.verify', Payment::firstOrFail()))
         ->assertForbidden();
 });

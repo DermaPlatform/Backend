@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Enums\Portal;
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Hash;
@@ -20,6 +22,12 @@ class LoginRequest extends FormRequest
      * Lockout duration in seconds once the attempt limit is reached.
      */
     private const DECAY_SECONDS = 60;
+
+    /**
+     * Shown to the owner of a deactivated account, who has already proven the
+     * password and so learns nothing new about whether the account exists.
+     */
+    public const INACTIVE_MESSAGE = 'This account has been deactivated. Please contact the clinic.';
 
     public function authorize(): bool
     {
@@ -48,26 +56,62 @@ class LoginRequest extends FormRequest
     /**
      * Resolve the user matching the credentials, throttling failed attempts.
      *
+     * A wrong password, an unknown email and an account belonging to another
+     * portal all fail identically. Answering "that account exists but signs in
+     * elsewhere" would tell an attacker which portal to go attack.
+     *
      * @throws ValidationException
      */
-    public function authenticate(): User
+    public function authenticate(Portal $portal): User
     {
-        $this->ensureIsNotRateLimited();
+        $this->ensureIsNotRateLimited($portal);
 
         /** @var User|null $user */
         $user = User::where('email', $this->string('email')->value())->first();
 
-        if (! $user || ! Hash::check($this->string('password')->value(), $user->password)) {
-            RateLimiter::hit($this->throttleKey(), self::DECAY_SECONDS);
+        if (! $this->opensPortal($user, $portal)) {
+            RateLimiter::hit($this->throttleKey($portal), self::DECAY_SECONDS);
 
             throw ValidationException::withMessages([
                 'email' => __('auth.failed'),
             ]);
         }
 
-        RateLimiter::clear($this->throttleKey());
+        RateLimiter::clear($this->throttleKey($portal));
+
+        /*
+         * Checked only once the password is known to be correct, so the
+         * message reaches the account's owner rather than anyone probing
+         * addresses. A lapsed doctor is deliberately not stopped here: they
+         * have to get in to renew, and the subscription is enforced per action.
+         */
+        if (! $user->is_active) {
+            throw ValidationException::withMessages([
+                'email' => self::INACTIVE_MESSAGE,
+            ]);
+        }
 
         return $user;
+    }
+
+    /**
+     * Whether these credentials open this portal.
+     *
+     * A secretary with no doctor attached fails as a bad credential rather
+     * than as an inactive account: the record is misconfigured, and letting it
+     * through would scope every clinic query to a null doctor.
+     */
+    private function opensPortal(?User $user, Portal $portal): bool
+    {
+        if (! $user || ! Hash::check($this->string('password')->value(), $user->password)) {
+            return false;
+        }
+
+        if (! $portal->admits($user->role)) {
+            return false;
+        }
+
+        return $user->role !== UserRole::Secretary || $user->doctor_id !== null;
     }
 
     /**
@@ -83,13 +127,13 @@ class LoginRequest extends FormRequest
     /**
      * @throws ValidationException
      */
-    protected function ensureIsNotRateLimited(): void
+    protected function ensureIsNotRateLimited(Portal $portal): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), self::MAX_ATTEMPTS)) {
+        if (! RateLimiter::tooManyAttempts($this->throttleKey($portal), self::MAX_ATTEMPTS)) {
             return;
         }
 
-        $seconds = RateLimiter::availableIn($this->throttleKey());
+        $seconds = RateLimiter::availableIn($this->throttleKey($portal));
 
         throw ValidationException::withMessages([
             'email' => __('auth.throttle', [
@@ -100,10 +144,13 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * Rate limiting key scoped to the submitted email and the client IP.
+     * Rate limiting key scoped to the submitted email, the client IP and the
+     * portal, so hammering one portal cannot lock a user out of another.
      */
-    protected function throttleKey(): string
+    protected function throttleKey(Portal $portal): string
     {
-        return Str::transliterate(Str::lower($this->string('email')->value()).'|'.$this->ip());
+        return Str::transliterate(
+            Str::lower($this->string('email')->value()).'|'.$this->ip().'|'.$portal->value
+        );
     }
 }

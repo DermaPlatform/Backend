@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Enums\Portal;
+use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -48,11 +50,17 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Point the reset link at the SPA rather than a non-existent web route.
+     *
+     * Which SPA is decided by the account's own role, not by the endpoint the
+     * request arrived at, so a doctor always lands on the clinic dashboard
+     * even if somebody files the request from the wrong front end.
      */
     private function configurePasswordResetUrl(): void
     {
         ResetPassword::createUrlUsing(function (object $notifiable, string $token): string {
-            $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+            $frontendUrl = $notifiable instanceof User
+                ? Portal::forRole($notifiable->role)->frontendUrl()
+                : rtrim((string) config('app.frontend_url'), '/');
 
             return $frontendUrl.'/reset-password?'.http_build_query([
                 'token' => $token,

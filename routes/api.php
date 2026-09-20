@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\Portal;
+use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminCategoryController;
 use App\Http\Controllers\Api\V1\AdminServiceController;
 use App\Http\Controllers\Api\V1\AppointmentController;
@@ -7,8 +9,10 @@ use App\Http\Controllers\Api\V1\AppointmentReceiptController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvailabilityController;
 use App\Http\Controllers\Api\V1\CatalogController;
+use App\Http\Controllers\Api\V1\ClinicAuthController;
 use App\Http\Controllers\Api\V1\ConsultationController;
 use App\Http\Controllers\Api\V1\DoctorController;
+use App\Http\Controllers\Api\V1\PatientAuthController;
 use App\Http\Controllers\Api\V1\PaymentReviewController;
 use App\Http\Controllers\Api\V1\PrivateFileController;
 use App\Http\Controllers\Api\V1\ProfileController;
@@ -32,12 +36,19 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     |----------------------------------------------------------------------
     | Authentication (Sprint 1)
     |----------------------------------------------------------------------
+    |
+    | One door per front end. Each issues a token stamped with its portal, so
+    | a session opened in the patient app cannot be replayed against the back
+    | office even if the token leaks. Signing in is the only part that differs:
+    | reading the session, logging out and consuming a reset token are shared.
+    |
     */
     Route::prefix('auth')->name('auth.')->group(function (): void {
         Route::middleware('throttle:auth')->group(function (): void {
-            Route::post('/register', [AuthController::class, 'register'])->name('register');
-            Route::post('/login', [AuthController::class, 'login'])->name('login');
-            Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('password.forgot');
+            Route::post('/register', [PatientAuthController::class, 'register'])->name('register');
+            Route::post('/login', [PatientAuthController::class, 'login'])->name('login');
+            Route::post('/forgot-password', [PatientAuthController::class, 'forgotPassword'])
+                ->name('password.forgot');
             Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.reset');
         });
 
@@ -46,6 +57,23 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
             Route::post('/logout-all', [AuthController::class, 'logoutAll'])->name('logout-all');
         });
+    });
+
+    /*
+     * The clinic dashboard. A doctor and their secretary share it, and the
+     * role on the returned user tells the dashboard which screens to draw.
+     */
+    Route::prefix('clinic/auth')->name('clinic.auth.')->middleware('throttle:auth')->group(function (): void {
+        Route::post('/login', [ClinicAuthController::class, 'login'])->name('login');
+        Route::post('/forgot-password', [ClinicAuthController::class, 'forgotPassword'])->name('password.forgot');
+    });
+
+    /*
+     * The back office. No registration and no public surface of any kind.
+     */
+    Route::prefix('admin/auth')->name('admin.auth.')->middleware('throttle:auth')->group(function (): void {
+        Route::post('/login', [AdminAuthController::class, 'login'])->name('login');
+        Route::post('/forgot-password', [AdminAuthController::class, 'forgotPassword'])->name('password.forgot');
     });
 
     /*
@@ -112,14 +140,17 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
         )->name('consultations.attachments.show');
 
         /*
-         * Receipt review is gated by the policy rather than by a role in the
-         * route, because a doctor and their secretary both belong here but
-         * only for their own patients.
+         * Receipt review is staff work, so a patient token is turned away at
+         * the door. Which staff member may touch which receipt stays with the
+         * policy: a doctor and their secretary both belong here, but only for
+         * their own patients.
          */
-        Route::post('/payments/{payment}/verify', [PaymentReviewController::class, 'verify'])
-            ->name('payments.verify');
-        Route::post('/payments/{payment}/reject', [PaymentReviewController::class, 'reject'])
-            ->name('payments.reject');
+        Route::middleware(Portal::middlewareAllowing(Portal::Clinic, Portal::Admin))->group(function (): void {
+            Route::post('/payments/{payment}/verify', [PaymentReviewController::class, 'verify'])
+                ->name('payments.verify');
+            Route::post('/payments/{payment}/reject', [PaymentReviewController::class, 'reject'])
+                ->name('payments.reject');
+        });
     });
 
     /*
@@ -127,7 +158,7 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
     | Admin portal (US-007, US-008)
     |----------------------------------------------------------------------
     */
-    Route::middleware(['auth:sanctum', 'role:admin'])
+    Route::middleware(['auth:sanctum', Portal::middlewareAllowing(Portal::Admin), 'role:admin'])
         ->prefix('admin')
         ->name('admin.')
         ->group(function (): void {

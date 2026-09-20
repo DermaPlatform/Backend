@@ -49,7 +49,7 @@ function bookingPayload(array $overrides = []): array
 }
 
 it('holds a slot for the patient pending payment', function (): void {
-    $response = $this->actingAs($this->patient)
+    $response = $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload());
 
     $response->assertCreated()
@@ -64,7 +64,7 @@ it('holds a slot for the patient pending payment', function (): void {
 });
 
 it('takes the duration from the doctor rather than the service', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertCreated();
 
@@ -74,7 +74,7 @@ it('takes the duration from the doctor rather than the service', function (): vo
 });
 
 it('copies the doctor price onto the appointment', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertCreated();
 
@@ -85,7 +85,7 @@ it('copies the doctor price onto the appointment', function (): void {
  * Sprint acceptance gate 3.
  */
 it('keeps the old price when the doctor later changes their rate', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertCreated();
 
@@ -100,13 +100,13 @@ it('keeps the old price when the doctor later changes their rate', function (): 
  * second attempt on the same slot is refused, and refused as a conflict.
  */
 it('refuses a second booking of the same slot with a conflict', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertCreated();
 
     $other = User::factory()->patient()->create();
 
-    $this->actingAs($other)
+    $this->actingAsPortal($other)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertStatus(409);
 
@@ -114,11 +114,11 @@ it('refuses a second booking of the same slot with a conflict', function (): voi
 });
 
 it('refuses a booking that overlaps an existing one only partly', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertCreated();
 
-    $this->actingAs(User::factory()->patient()->create())
+    $this->actingAsPortal(User::factory()->patient()->create())
         ->postJson(route('api.v1.appointments.store'), bookingPayload([
             'start_at' => $this->slotStart->addMinutes(30)->toIso8601String(),
         ]))
@@ -126,11 +126,11 @@ it('refuses a booking that overlaps an existing one only partly', function (): v
 });
 
 it('allows a booking that starts exactly when the previous one ends', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertCreated();
 
-    $this->actingAs(User::factory()->patient()->create())
+    $this->actingAsPortal(User::factory()->patient()->create())
         ->postJson(route('api.v1.appointments.store'), bookingPayload([
             'start_at' => $this->slotStart->addMinutes(45)->toIso8601String(),
         ]))
@@ -147,7 +147,7 @@ it('lets a lapsed hold free the slot for someone else', function (): void {
         'end_at' => $this->slotStart->addMinutes(45),
     ]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertCreated();
 });
@@ -155,7 +155,7 @@ it('lets a lapsed hold free the slot for someone else', function (): void {
 it('rejects a service the doctor does not offer', function (): void {
     $other = Service::factory()->create();
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload(['service_id' => $other->id]))
         ->assertStatus(422)
         ->assertJsonValidationErrors('service_id');
@@ -164,7 +164,7 @@ it('rejects a service the doctor does not offer', function (): void {
 it('rejects a doctor who has switched appointments off', function (): void {
     $this->doctor->doctorProfile->update(['accepts_appointments' => false]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertStatus(422)
         ->assertJsonValidationErrors('doctor_id');
@@ -176,7 +176,7 @@ it('rejects a doctor whose subscription has lapsed', function (): void {
         'subscription_ends_at' => now()->subDay(),
     ]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertStatus(422);
 });
@@ -184,13 +184,13 @@ it('rejects a doctor whose subscription has lapsed', function (): void {
 it('rejects a deactivated doctor', function (): void {
     $this->doctor->update(['is_active' => false]);
 
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertStatus(422);
 });
 
 it('rejects a time in the past', function (): void {
-    $this->actingAs($this->patient)
+    $this->actingAsPortal($this->patient)
         ->postJson(route('api.v1.appointments.store'), bookingPayload([
             'start_at' => now()->subHour()->toIso8601String(),
         ]))
@@ -199,7 +199,7 @@ it('rejects a time in the past', function (): void {
 });
 
 it('refuses to book for anyone but a patient', function (): void {
-    $this->actingAs($this->doctor)
+    $this->actingAsPortal($this->doctor)
         ->postJson(route('api.v1.appointments.store'), bookingPayload())
         ->assertForbidden();
 });
