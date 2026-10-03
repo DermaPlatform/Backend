@@ -927,3 +927,91 @@ POST /payments/{id}/verify           → الموعد يصير approved
 | `POST` | `/api/v1/consultations/{id}/payment-receipt` | 🔒 مريض | `201` |
 | `POST` | `/api/v1/consultations/{id}/messages` | 🔒 | `201` |
 | `GET` | `/api/v1/consultations/{id}/attachments/{attachment}` | 🔒 | `200` (ملف) |
+
+---
+
+## 13. إدارة حسابات الطاقم — أدمن فقط (US-025)
+
+كل المسارات هنا تحت `/api/v1/admin` وتتطلب توكن بوابة `admin` ودور `admin`. أي توكن آخر ← `403`.
+
+الطبيب والسكرتير **لا يسجّلون بأنفسهم**: الأدمن ينشئ الحساب ويحدد كلمة السر ويسلّمها لصاحبها. **لا يوجد حذف** — الحساب يُعطَّل فقط، لأن المواعيد والمدفوعات مربوطة به.
+
+### 13.1 كائن `StaffAccount`
+
+```json
+{
+  "id": 12,
+  "name": "د. سامي الخطيب",
+  "email": "sami@nadara.test",
+  "phone": "+970599000111",
+  "image_url": null,
+  "role": "doctor",
+  "is_active": true,
+  "specialty": "Dermatology",
+  "subscription": { "status": "trial", "ends_at": null },
+  "secretaries": [ { "id": 13, "name": "رنا", "role": "secretary", "is_active": true, "doctor_id": 12 } ],
+  "created_at": "2026-10-03T09:00:00+00:00"
+}
+```
+
+- `specialty` و `subscription` و `secretaries` تظهر للطبيب فقط.
+- `doctor_id` يظهر للسكرتير فقط.
+
+### 13.2 الأطباء
+
+#### `GET /admin/doctors`
+
+كل الأطباء، بمن فيهم المعطَّلون والمنتهية اشتراكاتهم. مع pagination.
+
+| باراميتر | الوصف |
+|---|---|
+| `q` | بحث بالاسم أو الإيميل أو الهاتف |
+| `is_active` | `1` أو `0` |
+| `per_page` | حجم الصفحة |
+
+#### `POST /admin/doctors` ← `201`
+
+| الحقل | القواعد |
+|---|---|
+| `name` | مطلوب |
+| `email` | مطلوب، فريد |
+| `phone` | مطلوب، فريد |
+| `password` | مطلوب، نفس قواعد القسم 6، **بدون** `password_confirmation` |
+| `specialty` | اختياري |
+
+الطبيب الجديد يبدأ `is_active = true` واشتراكه `trial`، فيظهر في الكتالوج فور إضافة خدماته ودوامه.
+
+#### `GET /admin/doctors/{id}` · `PUT /admin/doctors/{id}`
+
+التعديل يقبل نفس حقول الإنشاء وكلها اختيارية. إرسال `password` يعني إعادة تعيين: **كل جلسات الطبيب تُغلق**.
+`role` و `is_active` لا يتغيران من هنا.
+
+#### `POST /admin/doctors/{id}/toggle-active`
+
+يقلب `is_active`. عند التعطيل: يختفي الطبيب من الكتالوج، تُغلق جلساته، ولا يستطيع الدخول. **مواعيده الموجودة لا تُلغى.**
+
+> أي `id` ليس لطبيب ← `404`.
+
+### 13.3 السكرتيرون
+
+#### `GET /admin/doctors/{id}/secretaries` · `POST /admin/doctors/{id}/secretaries` ← `201`
+
+نفس حقول الطبيب ما عدا `specialty`. الطبيب يؤخذ **من المسار** لا من الـ body، والسكرتير لا ينتقل لطبيب آخر.
+
+#### `PUT /admin/secretaries/{id}` · `POST /admin/secretaries/{id}/toggle-active`
+
+نفس سلوك الطبيب: تغيير كلمة السر أو التعطيل يغلق الجلسات.
+
+### 13.4 جدول مرجعي
+
+| الطريقة | المسار | نجاح |
+|---|---|---|
+| `GET` | `/api/v1/admin/doctors` | `200` |
+| `POST` | `/api/v1/admin/doctors` | `201` |
+| `GET` | `/api/v1/admin/doctors/{id}` | `200` |
+| `PUT` | `/api/v1/admin/doctors/{id}` | `200` |
+| `POST` | `/api/v1/admin/doctors/{id}/toggle-active` | `200` |
+| `GET` | `/api/v1/admin/doctors/{id}/secretaries` | `200` |
+| `POST` | `/api/v1/admin/doctors/{id}/secretaries` | `201` |
+| `PUT` | `/api/v1/admin/secretaries/{id}` | `200` |
+| `POST` | `/api/v1/admin/secretaries/{id}/toggle-active` | `200` |
