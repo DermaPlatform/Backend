@@ -1,59 +1,135 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# نضارة — Backend
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+الـ API لمنصة **نضارة**: نظام إدارة لعيادات الجلدية وبوابة للمرضى فيها حجز مواعيد واستشارات أونلاين.
 
-## About Laravel
+الأطباء مستقلون: كل طبيب ينضم باتفاق مع المنصة، والأدمن ينشئ حسابه وحساب سكرتيره. المريض يسجّل بنفسه، يتصفح الأطباء، ويحجز موعداً أو يطلب استشارة. الدفع يدوي برفع إيصال تتحقق منه العيادة، لأن بوابات الدفع الإلكتروني غير متاحة في غزة.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **التقنية:** Laravel 12 · PHP 8.2+ · Sanctum · MySQL · Pest
+- **عقد الـ API:** [`API.md`](API.md)
+- **الخطة والقرارات:** [`NADARA-PLAN.md`](NADARA-PLAN.md)
+- **Postman:** [`postman/Nadara-API-v1.postman_collection.json`](postman/Nadara-API-v1.postman_collection.json)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## التشغيل
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+```bash
+composer install
+cp .env.example .env
+php artisan key:generate
+```
 
-## Learning Laravel
+عدّل بيانات قاعدة البيانات في `.env` (`DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`)، ثم:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+```bash
+php artisan migrate:fresh --seed
+php artisan storage:link
+php artisan serve
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+الـ API على `http://127.0.0.1:8000/api/v1`.
 
-## Laravel Sponsors
+المهمة المجدولة التي تحرّر الحجوزات غير المدفوعة بعد انتهاء مهلتها تحتاج:
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```bash
+php artisan schedule:work
+```
 
-### Premium Partners
+## حسابات العرض
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+بعد `migrate:fresh --seed`:
 
-## Contributing
+| الدور | الإيميل | كلمة السر | البوابة |
+|---|---|---|---|
+| أدمن | `admin@nadara.test` | `password` | `POST /admin/auth/login` |
+| طبيب | `doctor@nadara.test` | `password` | `POST /clinic/auth/login` |
+| سكرتير | `secretary@nadara.test` | `password` | `POST /clinic/auth/login` |
+| مريض | `patient@nadara.test` | `password` | `POST /auth/login` |
+| طبيبة (بيانات عربية) | `layla@nadara.test` | `nadara2026` | `POST /clinic/auth/login` |
+| سكرتيرة (بيانات عربية) | `sana@nadara.test` | `nadara2026` | `POST /clinic/auth/login` |
+| مريضة (بيانات عربية) | `sara.demo@nadara.test` | `nadara2026` | `POST /auth/login` |
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+عيادة د. ليلى هي عيادة العرض: أسبوع كامل من المواعيد، إيصال بانتظار التحقق، استشارات، ملاحظات طبية، دخل، إجازة قادمة، وسجل تدقيق.
+لإعادة تعبئتها فقط دون مسح القاعدة: `php artisan db:seed --class=DemoSeeder` (آمن للتكرار).
 
-## Code of Conduct
+## الأدوار
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| الدور | ماذا يفعل |
+|---|---|
+| **مريض** | يسجّل بنفسه، يحجز، يرفع الإيصال، يطلب استشارة، يتابع إشعاراته |
+| **طبيب** | يدير عيادته: الأسعار، الدوام، المواعيد، الإيصالات، الاستشارات، الملاحظات الطبية، تقرير الدخل |
+| **سكرتير** | مربوط بطبيب واحد. الرزنامة والمصاري: المواعيد، الإيصالات، الحجز التلفوني، الدوام. **لا يرى التشخيص ولا الدخل** |
+| **أدمن** | يدير المنصة: الكتالوج، حسابات الأطباء والسكرتيرين، الاشتراكات، سجل التدقيق |
 
-## Security Vulnerabilities
+كل دور يدخل من بوابته، والتوكن مختوم بالبوابة التي أصدرته: توكن مريض لا يفتح مسار عيادة.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## رحلة الحجز
 
-## License
+```
+حجز موعد (مهلة 30 دقيقة) ← رفع إيصال ← العيادة تتحقق ← الموعد مؤكَّد تلقائياً ← الزيارة ← مكتمل
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+- لا خطوة موافقة منفصلة: الفترة مأخوذة من دوام الطبيب، فهو وافق عليها مسبقاً.
+- السكرتير يحجز تلفونياً لمريض اتصل: الموعد مؤكَّد ومدفوع نقداً في خطوة واحدة.
+- الإلغاء من العيادة يتطلب سبباً ويعلّم الموعد «يحتاج استرجاع». الاسترجاع نفسه خارج النظام.
+
+## نموذج الدخل
+
+اشتراك شهري من الطبيب، والمريض مجاناً. لا نظام فوترة: التحصيل بتحويل أو واتساب، والأدمن يمدد الاشتراك يدوياً.
+
+- طبيب جديد ← تجربة **14 يوماً**.
+- بعد انتهاء التجربة أو الاشتراك ← مهلة سماح **7 أيام**.
+- بعد المهلة ← يختفي من الكتالوج ولا يستقبل حجوزات جديدة. مواعيده المدفوعة وبياناته تبقى.
+
+## الإعدادات
+
+في `config/nadara.php`، وتتغيّر من `.env`:
+
+| المتغيّر | الافتراضي | المعنى |
+|---|---|---|
+| `NADARA_CLINIC_TIMEZONE` | `Asia/Hebron` | توقيت العيادة. التخزين دائماً UTC |
+| `NADARA_BOOKING_HOLD_MINUTES` | `30` | مهلة الدفع قبل تحرير الحجز |
+| `NADARA_CANCELLATION_WINDOW_HOURS` | `24` | آخر مهلة لإلغاء المريض |
+| `NADARA_MAX_BOOKING_DAYS_AHEAD` | `90` | أبعد يوم يمكن الحجز فيه |
+| `NADARA_TRIAL_DAYS` | `14` | مدة تجربة الطبيب الجديد |
+| `NADARA_GRACE_DAYS` | `7` | مهلة السماح بعد انتهاء الاشتراك |
+| `NADARA_RATE_LIMIT_PER_MINUTE` | `120` | حد الطلبات لكل مستخدم |
+| `FRONTEND_URL` | `http://localhost:5173` | وجهة روابط إعادة كلمة السر |
+| `PATIENT_FRONTEND_URL` · `CLINIC_FRONTEND_URL` · `ADMIN_FRONTEND_URL` | — | واجهة كل بوابة إن اختلفت |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | الواجهات المسموح لها، مفصولة بفواصل |
+
+## الاختبارات
+
+```bash
+php artisan test --compact
+vendor/bin/pint --test
+```
+
+الاختبارات تعمل على SQLite بالذاكرة ولا تحتاج قاعدة بيانات. الـ CI يشغّلها مع فحص التنسيق عند كل push.
+
+ثلاثة اختبارات تحرس المنصة كلها لا ميزة واحدة:
+
+| الملف | ماذا يضمن |
+|---|---|
+| `tests/Feature/Security/RoleMatrixTest.php` | كل مسار مع كل دور. مسار جديد لم يُحدَّد من يستعمله يُفشل الاختبارات |
+| `tests/Feature/Performance/QueryCountTest.php` | لا قائمة تشغّل استعلاماً لكل صف (N+1) |
+| `tests/Feature/EndToEndJourneyTest.php` | الرحلة كاملة عبر HTTP: من إنشاء العيادة إلى تقرير الدخل |
+
+## هيكل المشروع
+
+```
+app/
+  Enums/           الحالات والأدوار والبوابات
+  Http/
+    Controllers/Api/V1/   Admin* للأدمن · Staff* للعيادة · Doctor* للطبيب
+    Requests/Api/V1/      التحقق من المدخلات
+    Resources/Api/V1/     شكل الردود
+  Models/
+  Policies/        من يرى ماذا: الموعد، الدفع، الاستشارة
+  Services/        منطق العمل: الإتاحة، الحجز، الدفع، الإلغاء، الاستشارات، الدوام
+routes/api.php     كل المسارات تحت /api/v1
+```
+
+## طريقة العمل
+
+- كل تغيير على فرع باسمه ثم PR على `main`. لا رفع مباشر، ولا `force push` على `main`.
+- قبل الرفع: `php artisan test --compact` و `vendor/bin/pint`.
+- أي مسار جديد يُضاف إلى `API.md` وكولكشن Postman ومصفوفة `RoleMatrixTest`.

@@ -3,19 +3,25 @@
 namespace Database\Seeders;
 
 use App\Enums\AppointmentStatus;
+use App\Enums\AuditAction;
 use App\Enums\ConsultationStatus;
 use App\Enums\Gender;
+use App\Enums\NotificationKind;
 use App\Enums\PaymentStatus;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use App\Models\Appointment;
+use App\Models\AuditLog;
 use App\Models\Consultation;
 use App\Models\ConsultationMessage;
 use App\Models\DoctorSchedule;
+use App\Models\MedicalNote;
 use App\Models\Payment;
+use App\Models\ScheduleException;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\User;
+use App\Notifications\ClinicUpdate;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -48,6 +54,7 @@ class DemoSeeder extends Seeder
         $this->schedule($doctor);
         $this->appointments($doctor, $services, $patients);
         $this->consultations($doctor, $services, $patients);
+        $this->clinicLife($doctor);
 
         $this->command?->info('بيانات العرض جاهزة.');
         $this->command?->info('الطبيبة: '.self::DOCTOR_EMAIL.' · كلمة السر: '.self::PASSWORD);
@@ -295,6 +302,83 @@ class DemoSeeder extends Seeder
                 'sender_id' => $answered->patient_id,
                 'message' => 'شكراً دكتورة. هل أستمر على نفس الغسول إذا صار في جفاف؟',
             ]);
+        }
+    }
+
+    /**
+     * What a clinic that has been running for a week leaves behind: notes on
+     * the finished visits, a day off next week, the audit trail of the
+     * receipts the secretary confirmed, and a notification for each patient
+     * whose booking was confirmed. Without these the income report, the
+     * patient history, the audit log and the bell all open empty.
+     */
+    private function clinicLife(User $doctor): void
+    {
+        $secretary = User::where('doctor_id', $doctor->id)->where('role', UserRole::Secretary)->first();
+
+        $notes = [
+            'حب شباب متوسط الشدة. بدء علاج موضعي ومراجعة بعد شهر.',
+            'تحسّن واضح بعد الجلسة الأولى. تُكمل الخطة كما هي.',
+            'تقشير سطحي دون مضاعفات. واقي شمس يومياً وتجنّب التعرض المباشر أسبوعاً.',
+        ];
+
+        $completed = Appointment::query()
+            ->where('doctor_id', $doctor->id)
+            ->where('status', AppointmentStatus::Completed)
+            ->orderBy('start_at')
+            ->get();
+
+        foreach ($completed as $index => $appointment) {
+            MedicalNote::firstOrCreate(
+                ['appointment_id' => $appointment->id],
+                [
+                    'patient_id' => $appointment->patient_id,
+                    'doctor_id' => $doctor->id,
+                    'notes' => $notes[$index % count($notes)],
+                ]
+            );
+        }
+
+        /*
+         * Matched on the doctor alone rather than the date: a date column
+         * does not compare equal to a date string on every database, and
+         * one day off is all the demo needs however often it is re-run.
+         */
+        if (! ScheduleException::where('doctor_id', $doctor->id)->exists()) {
+            ScheduleException::create([
+                'doctor_id' => $doctor->id,
+                'date' => CarbonImmutable::now(config('nadara.clinic_timezone'))->addDays(9)->toDateString(),
+                'starts_at' => null,
+                'ends_at' => null,
+                'reason' => 'مؤتمر طب الجلدية',
+            ]);
+        }
+
+        $verified = Payment::query()
+            ->where('status', PaymentStatus::Verified)
+            ->whereHas('appointment', fn ($appointment) => $appointment->where('doctor_id', $doctor->id))
+            ->with('patient')
+            ->get();
+
+        foreach ($verified as $payment) {
+            $alreadyLogged = AuditLog::query()
+                ->where('auditable_type', $payment->getMorphClass())
+                ->where('auditable_id', $payment->id)
+                ->exists();
+
+            if ($alreadyLogged) {
+                continue;
+            }
+
+            AuditLog::record($secretary ?? $doctor, AuditAction::PaymentVerified, $payment, [
+                'amount' => $payment->amount,
+                'appointment_id' => $payment->appointment_id,
+                'consultation_id' => null,
+            ]);
+
+            $payment->patient->notify(new ClinicUpdate(NotificationKind::AppointmentConfirmed, [
+                'appointment_id' => $payment->appointment_id,
+            ]));
         }
     }
 

@@ -33,7 +33,7 @@ class ConsultationController extends Controller
         $viewer = $request->user();
 
         $consultations = Consultation::query()
-            ->with(['patient', 'doctor', 'payment'])
+            ->with(['patient', 'doctor.doctorProfile', 'payment'])
             ->tap(function ($query) use ($viewer): void {
                 match ($viewer->role) {
                     UserRole::Patient => $query->where('patient_id', $viewer->id),
@@ -70,7 +70,7 @@ class ConsultationController extends Controller
         Gate::authorize('view', $consultation);
 
         return new ConsultationResource(
-            $consultation->load(['patient', 'doctor', 'payment', 'attachments', 'messages.sender'])
+            $consultation->load(['patient', 'doctor.doctorProfile', 'payment', 'attachments', 'messages.sender.doctorProfile'])
         );
     }
 
@@ -99,7 +99,7 @@ class ConsultationController extends Controller
 
         return response()->json([
             'message' => 'Message sent.',
-            'data' => new ConsultationResource($updated->load(['messages.sender'])),
+            'data' => new ConsultationResource($updated->load(['messages.sender.doctorProfile'])),
         ], 201);
     }
 }

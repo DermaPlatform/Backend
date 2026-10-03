@@ -37,7 +37,7 @@ class AppointmentController extends Controller
         [$windowStart, $windowEnd] = $request->startWindow();
 
         $appointments = Appointment::query()
-            ->with(['patient', 'doctor', 'service', 'payment'])
+            ->with(['patient', 'doctor.doctorProfile', 'service', 'payment'])
             ->tap(fn ($query) => $this->scopeToViewer($query, $request->user()))
             ->when(
                 $request->filled('status'),
