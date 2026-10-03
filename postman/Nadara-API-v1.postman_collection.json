@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Nadara API v1",
-    "description": "Nadara clinic platform API.\n\nSign-in is split by portal: each front end has a door of its own, and the token it\nhands back is stamped with that portal. A token minted at one door does not open\nanother, so \"Login as PATIENT\" then calling an admin route is a 403, not a 200.\n\nPortals:\n- Patient      POST /auth/login          (also /auth/register)\n- Clinic       POST /clinic/auth/login   (doctor and secretary share it)\n- Back office  POST /admin/auth/login\n\nShared, whichever door opened the session: /auth/me, /auth/logout,\n/auth/logout-all and /auth/reset-password. Each portal has its own\nforgot-password, and the reset link follows the account owner, not the endpoint.\n\nSetup:\n1. Run `php artisan serve` in the Backend folder.\n2. Run `php artisan migrate:fresh --seed` once to get the demo accounts.\n3. Send the Login request for the portal you want. The token is saved into\n   the {{token}} variable automatically, replacing whatever was there.\n\nDemo accounts (password: `password`):\n- admin@nadara.test      back office\n- doctor@nadara.test     clinic\n- secretary@nadara.test  clinic\n- patient@nadara.test    patient\n\nThe Arabic demo set from DemoSeeder uses the password `nadara2026`:\n- layla@nadara.test      clinic (doctor)\n- sana@nadara.test       clinic (secretary)\n- sara.demo@nadara.test  patient (and five more *.demo@nadara.test)\n\nFolder 6 checks the split itself: the same correct password is rejected at the\nwrong door, and it reads exactly like a wrong password so probing reveals nothing.",
+    "description": "Nadara clinic platform API.\n\nSign-in is split by portal: each front end has a door of its own, and the token it\nhands back is stamped with that portal. A token minted at one door does not open\nanother, so \"Login as PATIENT\" then calling an admin route is a 403, not a 200.\n\nPortals:\n- Patient      POST /auth/login          (also /auth/register)\n- Clinic       POST /clinic/auth/login   (doctor and secretary share it)\n- Back office  POST /admin/auth/login\n\nShared, whichever door opened the session: /auth/me, /auth/logout,\n/auth/logout-all and /auth/reset-password. Each portal has its own\nforgot-password, and the reset link follows the account owner, not the endpoint.\n\nSetup:\n1. Run `php artisan serve` in the Backend folder.\n2. Run `php artisan migrate:fresh --seed` once to get the demo accounts.\n3. Send the Login request for the portal you want. The token is saved into\n   the {{token}} variable automatically, replacing whatever was there.\n\nDemo accounts (password: `password`):\n- admin@nadara.test      back office\n- doctor@nadara.test     clinic\n- secretary@nadara.test  clinic\n- patient@nadara.test    patient\n\nThe Arabic demo set from DemoSeeder uses the password `nadara2026`:\n- layla@nadara.test      clinic (doctor)\n- sana@nadara.test       clinic (secretary)\n- sara.demo@nadara.test  patient (and five more *.demo@nadara.test)\n\nFolder 6 checks the split itself: the same correct password is rejected at the\nwrong door, and it reads exactly like a wrong password so probing reveals nothing.\n\nFolders 11 to 16 cover sprints 4 and 5: staff accounts, subscriptions and the audit log for the admin;\nday to day clinic work under /staff; the doctor's own tools under /doctor; and in-app\nnotifications. Each folder says which login it needs. Ids are passed between requests\nthrough collection variables, so run a folder top to bottom.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -48,6 +48,34 @@
     {
       "key": "booking_date",
       "value": "2026-09-20"
+    },
+    {
+      "key": "managed_doctor_id",
+      "value": ""
+    },
+    {
+      "key": "secretary_id",
+      "value": ""
+    },
+    {
+      "key": "patient_id",
+      "value": ""
+    },
+    {
+      "key": "staff_appointment_id",
+      "value": ""
+    },
+    {
+      "key": "schedule_id",
+      "value": ""
+    },
+    {
+      "key": "exception_id",
+      "value": ""
+    },
+    {
+      "key": "notification_id",
+      "value": ""
     }
   ],
   "auth": {
@@ -422,6 +450,41 @@
           }
         },
         {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Shared by every portal. The token comes from the link sent by a forgot-password request; with MAIL_MAILER=log it is written to storage/logs/laravel.log.",
+            "url": {
+              "raw": "{{base_url}}/auth/reset-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE-THE-TOKEN-FROM-THE-EMAIL\",\n  \"email\": \"patient@nadara.test\",\n  \"password\": \"new-password-123\",\n  \"password_confirmation\": \"new-password-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
           "name": "Logout",
           "request": {
             "method": "POST",
@@ -692,6 +755,73 @@
               "raw": "{\n  \"phone\": \"0590000001\"\n}"
             }
           }
+        },
+        {
+          "name": "Upload / replace my photo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/profile/image",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "profile",
+                "image"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": [],
+                  "description": "jpg, jpeg, png or webp, max 2 MB"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove my photo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/profile/image",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "profile",
+                "image"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -889,6 +1019,35 @@
               ]
             }
           }
+        },
+        {
+          "name": "Show one service",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/services/{{service_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "services",
+                "{{service_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Create service",
@@ -2098,6 +2257,1927 @@
       ]
     },
     {
+      "name": "11. Admin — doctors and secretaries (US-025)",
+      "description": "Log in as ADMIN first. Staff never self-register: the admin opens every doctor and secretary account. There is no delete, accounts are deactivated instead.",
+      "item": [
+        {
+          "name": "List doctors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/doctors",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search doctors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/doctors?q=layla&is_active=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "layla"
+                },
+                {
+                  "key": "is_active",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create doctor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "The new doctor starts active, on a 14 day trial. Saves {{managed_doctor_id}} for the requests below.",
+            "url": {
+              "raw": "{{base_url}}/admin/doctors",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"د. سامي الخطيب\",\n  \"email\": \"sami.{{$timestamp}}@nadara.test\",\n  \"phone\": \"+97059{{$randomInt}}{{$randomInt}}\",\n  \"password\": \"Str0ng-Passw0rd!\",\n  \"specialty\": \"Dermatology\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('starts on a dated trial', () => {",
+                  "    const subscription = pm.response.json().data.subscription;",
+                  "    pm.expect(subscription.status).to.eql('trial');",
+                  "    pm.expect(subscription.ends_at).to.not.be.null;",
+                  "});",
+                  "pm.collectionVariables.set('managed_doctor_id', pm.response.json().data.id);",
+                  "console.log('managed_doctor_id =', pm.collectionVariables.get('managed_doctor_id'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show doctor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/doctors/{{managed_doctor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors",
+                "{{managed_doctor_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update doctor",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Every field is optional. Sending `password` resets it and signs the doctor out everywhere.",
+            "url": {
+              "raw": "{{base_url}}/admin/doctors/{{managed_doctor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors",
+                "{{managed_doctor_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"د. سامي (محدّث)\",\n  \"specialty\": \"Cosmetic Dermatology\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create secretary for the doctor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/doctors/{{managed_doctor_id}}/secretaries",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors",
+                "{{managed_doctor_id}}",
+                "secretaries"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"رنا\",\n  \"email\": \"rana.{{$timestamp}}@nadara.test\",\n  \"phone\": \"+97056{{$randomInt}}{{$randomInt}}\",\n  \"password\": \"Str0ng-Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('tied to the doctor in the url', () => pm.expect(String(pm.response.json().data.doctor_id)).to.eql(String(pm.collectionVariables.get('managed_doctor_id'))));",
+                  "pm.collectionVariables.set('secretary_id', pm.response.json().data.id);",
+                  "console.log('secretary_id =', pm.collectionVariables.get('secretary_id'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List the doctor's secretaries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/doctors/{{managed_doctor_id}}/secretaries",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors",
+                "{{managed_doctor_id}}",
+                "secretaries"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update secretary",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/secretaries/{{secretary_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "secretaries",
+                "{{secretary_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"رنا (محدّث)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Toggle secretary active",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "Deactivating signs the secretary out everywhere. Send again to reactivate.",
+            "url": {
+              "raw": "{{base_url}}/admin/secretaries/{{secretary_id}}/toggle-active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "secretaries",
+                "{{secretary_id}}",
+                "toggle-active"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Toggle doctor active",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "Deactivating hides the doctor from the catalog and signs them out. Existing appointments are not cancelled. Send again to reactivate.",
+            "url": {
+              "raw": "{{base_url}}/admin/doctors/{{managed_doctor_id}}/toggle-active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors",
+                "{{managed_doctor_id}}",
+                "toggle-active"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create doctor with a taken email (expect 422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/doctors",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Duplicate\",\n  \"email\": \"doctor@nadara.test\",\n  \"phone\": \"+970590000000\",\n  \"password\": \"Str0ng-Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete a doctor (expect 405)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "There is no delete route on purpose.",
+            "url": {
+              "raw": "{{base_url}}/admin/doctors/{{managed_doctor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors",
+                "{{managed_doctor_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('405', () => pm.response.to.have.status(405));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "12. Admin — subscriptions (US-028)",
+      "description": "Log in as ADMIN first. No billing: money is collected outside the platform and the admin records it by moving the end date. A trial or subscription that runs out keeps working for a 7 day grace period, then the doctor drops out of the catalog.",
+      "item": [
+        {
+          "name": "List subscriptions (soonest to end first)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/subscriptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "subscriptions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter by standing",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "status is one of: trial, active, grace, expired.",
+            "url": {
+              "raw": "{{base_url}}/admin/subscriptions?status=trial",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "subscriptions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "trial"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Extend after a payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Uses {{managed_doctor_id}} from folder 11. The subscription covers the whole of that day.",
+            "url": {
+              "raw": "{{base_url}}/admin/doctors/{{managed_doctor_id}}/extend-subscription",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors",
+                "{{managed_doctor_id}}",
+                "extend-subscription"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ends_at\": \"2027-01-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('now active', () => pm.expect(pm.response.json().data.subscription.status).to.eql('active'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prolong the trial instead",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/doctors/{{managed_doctor_id}}/extend-subscription",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors",
+                "{{managed_doctor_id}}",
+                "extend-subscription"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ends_at\": \"2027-01-31\",\n  \"status\": \"trial\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('still a trial', () => pm.expect(pm.response.json().data.subscription.status).to.eql('trial'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Extend to a past date (expect 422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/doctors/{{managed_doctor_id}}/extend-subscription",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors",
+                "{{managed_doctor_id}}",
+                "extend-subscription"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ends_at\": \"2020-01-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13. Admin — audit log",
+      "description": "Log in as ADMIN first. Read only: every staff decision that moves money or access leaves an entry here.",
+      "item": [
+        {
+          "name": "List the trail (newest first)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/audit-logs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "audit-logs"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter by action",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Actions: payment.verified, payment.rejected, appointment.booked_by_phone, appointment.cancelled_by_clinic, appointment.duration_changed, appointment.completed, account.created, account.activated, account.deactivated, account.password_reset, subscription.extended.",
+            "url": {
+              "raw": "{{base_url}}/admin/audit-logs?action=payment.verified",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "audit-logs"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "payment.verified"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter by date range",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/audit-logs?from=2026-10-01&to=2026-12-31",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "audit-logs"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-10-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "14. Clinic operations — /staff (US-013 to US-016, US-026)",
+      "description": "Log in as DOCTOR or SECRETARY (they work on their own clinic), or as ADMIN (any clinic). Clinic staff must NOT send doctor_id. The admin must send doctor_id on phone booking, schedules and time off. Today's confirmed calendar is GET /appointments?period=today&status=approved (folder 8).",
+      "item": [
+        {
+          "name": "List clinic patients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/staff/patients",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "patients"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const patients = pm.response.json().data;",
+                  "if (patients.length) pm.collectionVariables.set('patient_id', patients[0].id);",
+                  "pm.test('nothing clinical', () => patients.forEach(p => pm.expect(p).to.not.have.any.keys('birth_date', 'gender', 'age')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search patients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/staff/patients?q=059",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "patients"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "059"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List clinic payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/staff/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "payments"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payments awaiting review",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "The review queue. Verify and reject stay on /payments/{id}/verify and /reject (folder 9).",
+            "url": {
+              "raw": "{{base_url}}/staff/payments?status=submitted",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "submitted"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book for a caller (phone booking)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Run \"Doctor availability for a date\" (folder 7) first so {{slot_start}} holds a free slot. The patient is found by phone, or an account is opened for a new number. As ADMIN add \"doctor_id\".",
+            "url": {
+              "raw": "{{base_url}}/staff/appointments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "appointments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_name\": \"أحمد يوسف\",\n  \"patient_phone\": \"+970599123456\",\n  \"service_id\": \"{{service_id}}\",\n  \"start_at\": \"{{slot_start}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('confirmed and paid in cash', () => {",
+                  "    const data = pm.response.json().data;",
+                  "    pm.expect(data.status).to.eql('approved');",
+                  "    pm.expect(data.payment.method).to.eql('cash');",
+                  "});",
+                  "pm.collectionVariables.set('staff_appointment_id', pm.response.json().data.id);",
+                  "console.log('staff_appointment_id =', pm.collectionVariables.get('staff_appointment_id'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book the same slot again (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/staff/appointments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "appointments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_name\": \"مريض آخر\",\n  \"patient_phone\": \"+970599654321\",\n  \"service_id\": \"{{service_id}}\",\n  \"start_at\": \"{{slot_start}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change the duration",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Moves the end time only. 409 if the new length runs into the next appointment.",
+            "url": {
+              "raw": "{{base_url}}/staff/appointments/{{staff_appointment_id}}/duration",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "appointments",
+                "{{staff_appointment_id}}",
+                "duration"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"duration_minutes\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark as completed",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "200 once the appointment has started; 422 on start_at while it is still in the future. Completing is what brings the appointment into the doctor's income report.",
+            "url": {
+              "raw": "{{base_url}}/staff/appointments/{{staff_appointment_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "appointments",
+                "{{staff_appointment_id}}",
+                "complete"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel on the clinic side",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/staff/appointments/{{staff_appointment_id}}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "appointments",
+                "{{staff_appointment_id}}",
+                "cancel"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"الطبيب مسافر\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('paid, so a refund is owed', () => pm.expect(pm.response.json().data.refund_required).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel with no reason (expect 422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/staff/appointments/{{staff_appointment_id}}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "appointments",
+                "{{staff_appointment_id}}",
+                "cancel"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List shifts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/staff/schedules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "schedules"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add a shift",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "weekday: 0 Sunday to 6 Saturday. Times are clinic wall clock, HH:MM.",
+            "url": {
+              "raw": "{{base_url}}/staff/schedules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "schedules"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weekday\": 5,\n  \"starts_at\": \"18:00\",\n  \"ends_at\": \"21:00\",\n  \"slot_minutes\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('schedule_id', pm.response.json().data.id);",
+                  "console.log('schedule_id =', pm.collectionVariables.get('schedule_id'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add an overlapping shift (expect 422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/staff/schedules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "schedules"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weekday\": 5,\n  \"starts_at\": \"20:00\",\n  \"ends_at\": \"22:00\",\n  \"slot_minutes\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Replace the shift",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Send the whole shift. 409 with stranded_appointments if patients are booked into hours being removed.",
+            "url": {
+              "raw": "{{base_url}}/staff/schedules/{{schedule_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "schedules",
+                "{{schedule_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weekday\": 5,\n  \"starts_at\": \"18:00\",\n  \"ends_at\": \"22:00\",\n  \"slot_minutes\": 20,\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove the shift",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/staff/schedules/{{schedule_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "schedules",
+                "{{schedule_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List upcoming time off",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/staff/schedule-exceptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "schedule-exceptions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add a full day off",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Leave both times out for the whole day. 409 with stranded_appointments if patients are booked that day.",
+            "url": {
+              "raw": "{{base_url}}/staff/schedule-exceptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "schedule-exceptions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2027-01-15\",\n  \"reason\": \"مؤتمر\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('exception_id', pm.response.json().data.id);",
+                  "console.log('exception_id =', pm.collectionVariables.get('exception_id'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Close part of a day",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/staff/schedule-exceptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "schedule-exceptions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2027-01-16\",\n  \"starts_at\": \"09:00\",\n  \"ends_at\": \"11:00\",\n  \"reason\": \"اجتماع\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove time off",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/staff/schedule-exceptions/{{exception_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "schedule-exceptions",
+                "{{exception_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "15. Doctor tools — /doctor (US-020, US-027)",
+      "description": "Log in as DOCTOR. The secretary shares the clinic portal but none of this folder: every request here is a 403 for them, and for the admin.",
+      "item": [
+        {
+          "name": "My services and prices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "The whole catalog; offering is null for a service the doctor has not priced.",
+            "url": {
+              "raw": "{{base_url}}/doctor/services",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "services"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Price a service",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Creates or updates the doctor's terms. Appointments already booked keep their price and end time.",
+            "url": {
+              "raw": "{{base_url}}/doctor/services/{{service_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "services",
+                "{{service_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 150,\n  \"duration_minutes\": 45,\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Switch a service off",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Run \"Price a service\" again afterwards to switch it back on.",
+            "url": {
+              "raw": "{{base_url}}/doctor/services/{{service_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "services",
+                "{{service_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 150,\n  \"duration_minutes\": 45,\n  \"is_active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/doctor/preferences",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "preferences"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update my preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/doctor/preferences",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "preferences"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accepts_appointments\": true,\n  \"accepts_online_consultations\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Income this month",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Completed appointments and answered, paid consultations.",
+            "url": {
+              "raw": "{{base_url}}/doctor/income",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "income"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Income for a range",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/doctor/income?from=2026-09-01&to=2026-09-30",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "income"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-09-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-09-30"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Write the medical note",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "200 for the doctor's own confirmed or completed appointment; 422 on status otherwise; 403 for another doctor's. {{appointment_id}} comes from folder 8.",
+            "url": {
+              "raw": "{{base_url}}/doctor/appointments/{{appointment_id}}/medical-note",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "appointments",
+                "{{appointment_id}}",
+                "medical-note"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"أكزيما خفيفة. كريم مرطب مرتين يومياً ومراجعة بعد أسبوعين.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Read the medical note",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/doctor/appointments/{{appointment_id}}/medical-note",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "appointments",
+                "{{appointment_id}}",
+                "medical-note"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Patient history with me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "{{patient_id}} is saved by \"List clinic patients\" (folder 14). 404 for someone who never visited this doctor.",
+            "url": {
+              "raw": "{{base_url}}/doctor/patients/{{patient_id}}/history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "patients",
+                "{{patient_id}}",
+                "history"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Notifications",
+      "description": "Any signed in user, and each sees only their own. Log in as PATIENT to see the ones raised by verifying or rejecting a receipt, a clinic cancellation, or a doctor's reply.",
+      "item": [
+        {
+          "name": "My notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('carries the unread count', () => pm.expect(body).to.have.property('unread_count'));",
+                  "if (body.data.length) pm.collectionVariables.set('notification_id', body.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unread only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications?unread=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "unread",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark one as read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "{{notification_id}} is saved by \"My notifications\". 404 for a notification that belongs to someone else.",
+            "url": {
+              "raw": "{{base_url}}/notifications/{{notification_id}}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notification_id}}",
+                "read"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark all as read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/read-all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "6. Security checks",
       "item": [
         {
@@ -2463,6 +4543,188 @@
               "raw": "{\n  \"email\": \"admin@nadara.test\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
             }
           }
+        },
+        {
+          "name": "Clinic route with PATIENT token (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Log in as PATIENT first.",
+            "url": {
+              "raw": "{{base_url}}/staff/patients",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "patients"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Income as SECRETARY (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Log in as SECRETARY first. The monthly total belongs to the doctor.",
+            "url": {
+              "raw": "{{base_url}}/doctor/income",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "income"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Medical note as SECRETARY (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Log in as SECRETARY first. The role runs the calendar and the money, never the diagnosis.",
+            "url": {
+              "raw": "{{base_url}}/doctor/appointments/{{appointment_id}}/medical-note",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "doctor",
+                "appointments",
+                "{{appointment_id}}",
+                "medical-note"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary naming another doctor (expect 422)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Log in as SECRETARY first. Clinic staff are confined by who they are; only the admin may send doctor_id.",
+            "url": {
+              "raw": "{{base_url}}/staff/payments?doctor_id={{doctor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "staff",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "doctor_id",
+                  "value": "{{doctor_id}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Staff accounts as DOCTOR (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Log in as DOCTOR first.",
+            "url": {
+              "raw": "{{base_url}}/admin/doctors",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "doctors"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Audit log as DOCTOR (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Log in as DOCTOR first.",
+            "url": {
+              "raw": "{{base_url}}/admin/audit-logs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "audit-logs"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
