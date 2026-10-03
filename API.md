@@ -1059,3 +1059,48 @@ POST /payments/{id}/verify           → الموعد يصير approved
 |---|---|---|
 | `GET` | `/api/v1/admin/subscriptions` | `200` |
 | `POST` | `/api/v1/admin/doctors/{id}/extend-subscription` | `200` |
+
+---
+
+## 15. سجل التدقيق — أدمن فقط
+
+كل قرار يتخذه الطاقم ويغيّر مالاً أو صلاحية يُسجَّل تلقائياً: مين عمله، على أي سجل، ومتى. السجل **للقراءة فقط** — لا يوجد مسار يعدّل أو يحذف منه.
+
+### 15.1 ما الذي يُسجَّل
+
+| `action` | متى | `subject.type` | `changes` |
+|---|---|---|---|
+| `payment.verified` | التحقق من إيصال | `payment` | `amount`, `appointment_id`, `consultation_id` |
+| `payment.rejected` | رفض إيصال | `payment` | `reason`, `appointment_id`, `consultation_id` |
+| `account.created` | إنشاء طبيب أو سكرتير | `user` | `role`, `email` (و `doctor_id` للسكرتير) |
+| `account.activated` | إعادة تفعيل حساب | `user` | — |
+| `account.deactivated` | تعطيل حساب | `user` | — |
+| `account.password_reset` | الأدمن غيّر كلمة سر حساب | `user` | — |
+| `subscription.extended` | تمديد اشتراك أو تجربة | `user` (الطبيب) | `from` و `to`، كلٌّ فيه `status` و `ends_at` |
+
+كلمات السر لا تُكتب في السجل إطلاقاً.
+
+### 15.2 `GET /admin/audit-logs`
+
+الأحدث أولاً، مع pagination.
+
+| باراميتر | الوصف |
+|---|---|
+| `action` | واحدة من قيم الجدول أعلاه |
+| `user_id` | مين عمل القرار |
+| `from` · `to` | `YYYY-MM-DD` بتوقيت العيادة، شاملة للطرفين |
+| `per_page` | حجم الصفحة |
+
+```json
+{
+  "id": 41,
+  "action": "subscription.extended",
+  "actor": { "id": 1, "name": "Admin", "role": "admin" },
+  "subject": { "type": "user", "id": 12 },
+  "changes": {
+    "from": { "status": "trial", "ends_at": "2026-10-17T09:00:00+00:00" },
+    "to": { "status": "active", "ends_at": "2026-11-30T20:59:59+00:00" }
+  },
+  "created_at": "2026-10-03T09:00:00+00:00"
+}
+```
