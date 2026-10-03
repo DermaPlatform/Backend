@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Portal;
+use App\Http\Controllers\Api\V1\AdminAuditLogController;
 use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminCategoryController;
 use App\Http\Controllers\Api\V1\AdminDoctorController;
@@ -197,5 +198,7 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
                 ->name('secretaries.update');
             Route::post('/secretaries/{secretary}/toggle-active', [AdminSecretaryController::class, 'toggleActive'])
                 ->name('secretaries.toggle-active');
+
+            Route::get('/audit-logs', [AdminAuditLogController::class, 'index'])->name('audit-logs.index');
         });
 });

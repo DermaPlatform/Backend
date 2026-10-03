@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\AuditAction;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreDoctorRequest;
 use App\Http\Requests\Api\V1\UpdateDoctorRequest;
 use App\Http\Resources\Api\V1\StaffAccountResource;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -75,6 +77,11 @@ class AdminDoctorController extends Controller
                 'subscription_ends_at' => now()->addDays((int) config('nadara.subscriptions.trial_days')),
             ]);
 
+            AuditLog::record($request->user(), AuditAction::AccountCreated, $doctor, [
+                'role' => UserRole::Doctor->value,
+                'email' => $doctor->email,
+            ]);
+
             return $doctor;
         });
 
@@ -101,15 +108,17 @@ class AdminDoctorController extends Controller
             if ($request->has('specialty')) {
                 $doctor->doctorProfile()->update(['specialty' => $request->validated('specialty')]);
             }
-        });
 
-        /*
-         * A password set by the admin is a reset: sessions opened with the
-         * old one must not outlive it.
-         */
-        if ($request->has('password')) {
-            $doctor->tokens()->delete();
-        }
+            /*
+             * A password set by the admin is a reset: sessions opened with
+             * the old one must not outlive it.
+             */
+            if ($request->has('password')) {
+                $doctor->tokens()->delete();
+
+                AuditLog::record($request->user(), AuditAction::AccountPasswordReset, $doctor);
+            }
+        });
 
         return response()->json([
             'message' => 'Doctor updated successfully.',
@@ -124,15 +133,23 @@ class AdminDoctorController extends Controller
      * everywhere. Existing appointments are left alone: they are paid for,
      * and cancelling them is a separate decision with a refund attached.
      */
-    public function toggleActive(User $doctor): JsonResponse
+    public function toggleActive(Request $request, User $doctor): JsonResponse
     {
         $this->ensureIsDoctor($doctor);
 
-        $doctor->update(['is_active' => ! $doctor->is_active]);
+        DB::transaction(function () use ($request, $doctor): void {
+            $doctor->update(['is_active' => ! $doctor->is_active]);
 
-        if (! $doctor->is_active) {
-            $doctor->tokens()->delete();
-        }
+            if (! $doctor->is_active) {
+                $doctor->tokens()->delete();
+            }
+
+            AuditLog::record(
+                $request->user(),
+                $doctor->is_active ? AuditAction::AccountActivated : AuditAction::AccountDeactivated,
+                $doctor,
+            );
+        });
 
         return response()->json([
             'message' => $doctor->is_active

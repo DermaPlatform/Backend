@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\AuditAction;
 use App\Enums\SubscriptionStanding;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\ExtendSubscriptionRequest;
 use App\Http\Resources\Api\V1\StaffAccountResource;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
@@ -59,10 +62,27 @@ class AdminSubscriptionController extends Controller
     {
         abort_unless($doctor->role === UserRole::Doctor, 404);
 
-        $doctor->doctorProfile()->update([
-            'subscription_status' => $request->status(),
-            'subscription_ends_at' => $request->endsAt(),
-        ]);
+        DB::transaction(function () use ($request, $doctor): void {
+            $profile = $doctor->doctorProfile()->lockForUpdate()->firstOrFail();
+
+            $before = [
+                'status' => $profile->subscription_status->value,
+                'ends_at' => $profile->subscription_ends_at?->toIso8601String(),
+            ];
+
+            $profile->update([
+                'subscription_status' => $request->status(),
+                'subscription_ends_at' => $request->endsAt(),
+            ]);
+
+            AuditLog::record($request->user(), AuditAction::SubscriptionExtended, $doctor, [
+                'from' => $before,
+                'to' => [
+                    'status' => $profile->subscription_status->value,
+                    'ends_at' => $profile->subscription_ends_at->toIso8601String(),
+                ],
+            ]);
+        });
 
         return response()->json([
             'message' => 'Subscription extended successfully.',

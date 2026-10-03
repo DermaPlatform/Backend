@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Enums\AppointmentStatus;
+use App\Enums\AuditAction;
 use App\Enums\ConsultationStatus;
 use App\Enums\PaymentStatus;
 use App\Models\Appointment;
+use App\Models\AuditLog;
 use App\Models\Consultation;
 use App\Models\Payment;
 use App\Models\User;
@@ -103,6 +105,12 @@ class PaymentService
                 'status' => ConsultationStatus::AwaitingReply,
             ]);
 
+            AuditLog::record($staff, AuditAction::PaymentVerified, $payment, [
+                'amount' => $payment->amount,
+                'appointment_id' => $payment->appointment_id,
+                'consultation_id' => $payment->consultation_id,
+            ]);
+
             return $payment->refresh();
         });
     }
@@ -130,6 +138,12 @@ class PaymentService
                 'status' => AppointmentStatus::PendingPayment,
                 'hold_expires_at' => now()->addMinutes((int) config('nadara.booking_hold_minutes')),
                 'rejection_reason' => $reason,
+            ]);
+
+            AuditLog::record($staff, AuditAction::PaymentRejected, $payment, [
+                'reason' => $reason,
+                'appointment_id' => $payment->appointment_id,
+                'consultation_id' => $payment->consultation_id,
             ]);
 
             return $payment->refresh();
