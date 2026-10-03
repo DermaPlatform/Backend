@@ -34,8 +34,9 @@ class StaffAccountResource extends JsonResource
             'doctor_id' => $this->when($this->role === UserRole::Secretary, fn (): ?int => $this->doctor_id),
             'specialty' => $this->when($isDoctor, fn (): ?string => $this->doctorProfile?->specialty),
             'subscription' => $this->when($isDoctor, fn (): array => [
-                'status' => $this->doctorProfile?->subscription_status?->value,
+                'status' => $this->doctorProfile?->subscriptionStanding()->value,
                 'ends_at' => $this->doctorProfile?->subscription_ends_at?->toIso8601String(),
+                'grace_ends_at' => $this->doctorProfile?->graceEndsAt()?->toIso8601String(),
             ]),
             'secretaries' => self::collection($this->whenLoaded('secretaries')),
             'created_at' => $this->created_at?->toIso8601String(),

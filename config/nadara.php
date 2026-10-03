@@ -111,6 +111,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Subscriptions
+    |--------------------------------------------------------------------------
+    |
+    | trial_days: how long a newly created doctor runs free before the first
+    | payment is due.
+    |
+    | grace_days: how long a doctor keeps taking bookings after the end date
+    | passes, so a late transfer does not take them out of the catalog.
+    |
+    */
+
+    'subscriptions' => [
+        'trial_days' => env('NADARA_TRIAL_DAYS', 14),
+        'grace_days' => env('NADARA_GRACE_DAYS', 7),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Pagination
     |--------------------------------------------------------------------------
     */

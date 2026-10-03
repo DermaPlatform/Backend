@@ -948,7 +948,7 @@ POST /payments/{id}/verify           → الموعد يصير approved
   "role": "doctor",
   "is_active": true,
   "specialty": "Dermatology",
-  "subscription": { "status": "trial", "ends_at": null },
+  "subscription": { "status": "trial", "ends_at": "2026-10-17T09:00:00+00:00", "grace_ends_at": "2026-10-24T09:00:00+00:00" },
   "secretaries": [ { "id": 13, "name": "رنا", "role": "secretary", "is_active": true, "doctor_id": 12 } ],
   "created_at": "2026-10-03T09:00:00+00:00"
 }
@@ -979,7 +979,7 @@ POST /payments/{id}/verify           → الموعد يصير approved
 | `password` | مطلوب، نفس قواعد القسم 6، **بدون** `password_confirmation` |
 | `specialty` | اختياري |
 
-الطبيب الجديد يبدأ `is_active = true` واشتراكه `trial`، فيظهر في الكتالوج فور إضافة خدماته ودوامه.
+الطبيب الجديد يبدأ `is_active = true` وبفترة تجريبية **14 يوماً**، فيظهر في الكتالوج فور إضافة خدماته ودوامه.
 
 #### `GET /admin/doctors/{id}` · `PUT /admin/doctors/{id}`
 
@@ -1015,3 +1015,47 @@ POST /payments/{id}/verify           → الموعد يصير approved
 | `POST` | `/api/v1/admin/doctors/{id}/secretaries` | `201` |
 | `PUT` | `/api/v1/admin/secretaries/{id}` | `200` |
 | `POST` | `/api/v1/admin/secretaries/{id}/toggle-active` | `200` |
+
+---
+
+## 14. الاشتراكات — أدمن فقط (US-028)
+
+لا يوجد نظام فوترة. التحصيل يتم بتحويل أو واتساب، والأدمن يسجّل النتيجة بتحريك تاريخ الانتهاء.
+
+### 14.1 حالة الاشتراك
+
+`subscription.status` في كائن `StaffAccount` محسوبة لحظة الطلب، وهي واحدة من أربع:
+
+| القيمة | المعنى | يظهر في الكتالوج ويستقبل حجوزات؟ |
+|---|---|:---:|
+| `trial` | فترة تجريبية لم تنتهِ | ✅ |
+| `active` | اشتراك مدفوع لم ينتهِ | ✅ |
+| `grace` | انتهى التاريخ وما زال ضمن مهلة السماح (**7 أيام**) | ✅ |
+| `expired` | انتهت المهلة، أو أوقفه الأدمن | ❌ |
+
+- `ends_at`: تاريخ انتهاء الاشتراك أو التجربة. `null` يعني مفتوح بلا نهاية.
+- `grace_ends_at`: اللحظة التي يختفي فيها الطبيب من الكتالوج (`ends_at` + 7 أيام).
+- الطبيب المنتهي **لا تُلغى مواعيده المدفوعة ولا تُمسح بياناته**، ويستطيع الدخول لبوابته.
+
+### 14.2 `GET /admin/subscriptions`
+
+كل الأطباء مرتّبين بالأقرب انتهاءً أولاً (والمفتوحون بلا تاريخ في الآخر). مع pagination.
+
+| باراميتر | الوصف |
+|---|---|
+| `status` | `trial` · `active` · `grace` · `expired` |
+| `per_page` | حجم الصفحة |
+
+### 14.3 `POST /admin/doctors/{id}/extend-subscription`
+
+| الحقل | القواعد |
+|---|---|
+| `ends_at` | مطلوب، `YYYY-MM-DD`، اليوم أو بعده. الاشتراك يغطي ذلك اليوم كاملاً بتوقيت العيادة |
+| `status` | اختياري: `active` (الافتراضي — الطبيب دفع) أو `trial` (تمديد التجربة بلا دفع) |
+
+يرجّع كائن `StaffAccount`. طبيب منتهٍ يعود للكتالوج فوراً بعد التمديد.
+
+| الطريقة | المسار | نجاح |
+|---|---|---|
+| `GET` | `/api/v1/admin/subscriptions` | `200` |
+| `POST` | `/api/v1/admin/doctors/{id}/extend-subscription` | `200` |

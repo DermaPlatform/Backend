@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AdminCategoryController;
 use App\Http\Controllers\Api\V1\AdminDoctorController;
 use App\Http\Controllers\Api\V1\AdminSecretaryController;
 use App\Http\Controllers\Api\V1\AdminServiceController;
+use App\Http\Controllers\Api\V1\AdminSubscriptionController;
 use App\Http\Controllers\Api\V1\AppointmentController;
 use App\Http\Controllers\Api\V1\AppointmentReceiptController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -182,6 +183,11 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::post('/doctors/{doctor}/toggle-active', [AdminDoctorController::class, 'toggleActive'])
                 ->name('doctors.toggle-active');
             Route::apiResource('doctors', AdminDoctorController::class)->except('destroy');
+
+            Route::get('/subscriptions', [AdminSubscriptionController::class, 'index'])
+                ->name('subscriptions.index');
+            Route::post('/doctors/{doctor}/extend-subscription', [AdminSubscriptionController::class, 'extend'])
+                ->name('doctors.extend-subscription');
 
             Route::get('/doctors/{doctor}/secretaries', [AdminSecretaryController::class, 'index'])
                 ->name('doctors.secretaries.index');

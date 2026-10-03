@@ -4,7 +4,6 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\Gender;
-use App\Enums\SubscriptionStatus;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -124,16 +123,7 @@ class User extends Authenticatable
          */
         $query->where('users.role', UserRole::Doctor)
             ->where('users.is_active', true)
-            ->whereHas('doctorProfile', function (Builder $profile): void {
-                $profile->where('subscription_status', SubscriptionStatus::Trial)
-                    ->orWhere(function (Builder $dated): void {
-                        $dated->where('subscription_status', SubscriptionStatus::Active)
-                            ->where(function (Builder $window): void {
-                                $window->whereNull('subscription_ends_at')
-                                    ->orWhere('subscription_ends_at', '>', now());
-                            });
-                    });
-            });
+            ->whereHas('doctorProfile', fn (Builder $profile) => $profile->takingNewWork());
     }
 
     /**

@@ -354,7 +354,7 @@
 | المهمة | التفصيل |
 |---|---|
 | US-025 إدارة المستخدمين | CRUD لحسابات الأطباء **وحسابات السكرتيرين** + seeder لأول مسؤول · لا تسجيل ذاتي إلا للمريض |
-| **US-028 إدارة الاشتراكات** | كشف اشتراكات الأطباء + تمديد يدوي. **لا نظام فوترة للـ MVP** — عمودان وشاشة تمديد؛ تحصيل عشرة اشتراكات يتم بواتساب لا بكود |
+| **US-028 إدارة الاشتراكات** | كشف اشتراكات الأطباء + تمديد يدوي. **التجربة 14 يوماً ثم مهلة سماح 7 أيام** (محسوبة وقت القراءة، من `config/nadara.php`)؛ بعدها يختفي الطبيب من الكتالوج. **لا نظام فوترة للـ MVP** — عمودان وشاشة تمديد؛ تحصيل عشرة اشتراكات يتم بواتساب لا بكود |
 | تصنيف الخدمات | كتالوج المنصة (US-008) — يبقى للأدمن |
 | سجل التدقيق | تسجيل كل تحقق دفع/رفض إيصال/إلغاء من العيادة/تعديل مدة/تمديد اشتراك/إنشاء وتعطيل حساب |
 
@@ -453,8 +453,8 @@ apiResource /admin/categories
 apiResource /admin/services               POST /admin/services/{id}/toggle-active
 apiResource /admin/doctors  (بلا destroy)  POST /admin/doctors/{id}/toggle-active      ← US-025 ✅
 GET|POST /admin/doctors/{id}/secretaries  PUT /admin/secretaries/{id}  POST /admin/secretaries/{id}/toggle-active  ← US-025 ✅
-GET  /admin/subscriptions                 ?status=                        ← US-028
-POST /admin/doctors/{id}/extend-subscription  { ends_at }                 ← US-028
+GET  /admin/subscriptions                 ?status=trial|active|grace|expired   ← US-028 ✅
+POST /admin/doctors/{id}/extend-subscription  { ends_at, status? }             ← US-028 ✅
 ```
 
 ### الطبيب — `auth:sanctum` + `role:doctor`

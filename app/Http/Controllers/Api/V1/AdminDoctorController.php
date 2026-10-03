@@ -72,6 +72,7 @@ class AdminDoctorController extends Controller
             $doctor->doctorProfile()->create([
                 'specialty' => $request->validated('specialty'),
                 'subscription_status' => SubscriptionStatus::Trial,
+                'subscription_ends_at' => now()->addDays((int) config('nadara.subscriptions.trial_days')),
             ]);
 
             return $doctor;
