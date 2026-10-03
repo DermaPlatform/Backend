@@ -6,6 +6,7 @@ use App\Enums\Portal;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
@@ -28,6 +29,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
+        /*
+         * Outside production a relation read without being loaded first
+         * throws instead of quietly running one query per row. An N+1 then
+         * fails the test that introduced it, rather than surfacing months
+         * later as a slow list. Production keeps the forgiving behaviour.
+         */
+        Model::preventLazyLoading(! $this->app->isProduction());
 
         $this->configurePasswordRules();
         $this->configurePasswordResetUrl();
@@ -76,5 +85,13 @@ class AppServiceProvider extends ServiceProvider
     private function configureRateLimiting(): void
     {
         RateLimiter::for('auth', fn (Request $request): Limit => Limit::perMinute(20)->by($request->ip()));
+
+        /*
+         * The ceiling for everything else. Keyed by the signed in user so
+         * people behind one shared address, a clinic or a campus, do not
+         * spend each other's allowance.
+         */
+        RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute((int) config('nadara.rate_limit_per_minute'))
+            ->by($request->user()?->id ?: $request->ip()));
     }
 }

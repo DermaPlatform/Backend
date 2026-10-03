@@ -129,6 +129,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rate limiting
+    |--------------------------------------------------------------------------
+    |
+    | Requests one user, or one address for a visitor, may make per minute
+    | across the whole API. The sign in endpoints carry a tighter limit of
+    | their own.
+    |
+    */
+
+    'rate_limit_per_minute' => env('NADARA_RATE_LIMIT_PER_MINUTE', 120),
+
+    /*
+    |--------------------------------------------------------------------------
     | Pagination
     |--------------------------------------------------------------------------
     */
