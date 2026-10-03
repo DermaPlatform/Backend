@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\DoctorSchedule;
+use App\Models\ScheduleException;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -87,6 +88,52 @@ class ScheduleService
             ->overlapping($windowStart, $windowEnd)
             ->occupyingSlot()
             ->count();
+    }
+
+    /**
+     * Whether the doctor is working for the whole of this window: an active
+     * shift holds it from start to end, and no day off or closed hours on
+     * that date cut into it.
+     *
+     * Availability only ever offers such windows, but the booking endpoint
+     * takes any timestamp, so without this a patient could post 03:00 or a
+     * date the doctor has taken off and get a confirmed slot nobody staffs.
+     */
+    public function isWorking(int $doctorId, CarbonImmutable $start, CarbonImmutable $end): bool
+    {
+        $timezone = config('nadara.clinic_timezone');
+        $localStart = $start->timezone($timezone);
+        $localEnd = $end->timezone($timezone);
+
+        // A shift never runs past midnight, so neither can a visit inside one.
+        if (! $localStart->isSameDay($localEnd)) {
+            return false;
+        }
+
+        $startTime = $localStart->format('H:i:s');
+        $endTime = $localEnd->format('H:i:s');
+
+        $inShift = DoctorSchedule::query()
+            ->where('doctor_id', $doctorId)
+            ->where('weekday', $localStart->dayOfWeek)
+            ->where('is_active', true)
+            ->where('starts_at', '<=', $startTime)
+            ->where('ends_at', '>=', $endTime)
+            ->exists();
+
+        if (! $inShift) {
+            return false;
+        }
+
+        return ! ScheduleException::query()
+            ->where('doctor_id', $doctorId)
+            ->whereDate('date', $localStart->toDateString())
+            ->where(fn ($query) => $query
+                ->whereNull('starts_at')
+                ->orWhere(fn ($partial) => $partial
+                    ->where('starts_at', '<', $endTime)
+                    ->where('ends_at', '>', $startTime)))
+            ->exists();
     }
 
     /**

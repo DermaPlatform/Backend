@@ -24,7 +24,10 @@ use Illuminate\Support\Facades\DB;
  */
 class BookingService
 {
-    public function __construct(private readonly PaymentService $payments) {}
+    public function __construct(
+        private readonly PaymentService $payments,
+        private readonly ScheduleService $schedules,
+    ) {}
 
     /**
      * Hold a slot for a patient, pending payment.
@@ -35,6 +38,15 @@ class BookingService
     public function book(User $patient, User $doctor, Service $service, CarbonInterface $startAt): Appointment
     {
         $slot = $this->slotFor($doctor, $service, $startAt);
+
+        /*
+         * Only the patient's own booking is held to the published hours. The
+         * clinic booking a caller by phone may squeeze a visit in outside
+         * them; that is the clinic's call to make.
+         */
+        if (! $this->schedules->isWorking($doctor->id, $slot['start'], $slot['end'])) {
+            throw new BookingNotAllowedException('The doctor is not working at that time.', 'start_at');
+        }
 
         return DB::transaction(function () use ($patient, $doctor, $service, $slot): Appointment {
             $this->assertSlotIsFree($doctor->id, $slot['start'], $slot['end']);

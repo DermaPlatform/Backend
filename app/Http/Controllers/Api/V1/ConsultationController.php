@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\ConsultationStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
+use App\Exceptions\BookingNotAllowedException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreConsultationMessageRequest;
 use App\Http\Requests\Api\V1\StoreConsultationReceiptRequest;
@@ -76,6 +79,8 @@ class ConsultationController extends Controller
 
     public function storeReceipt(StoreConsultationReceiptRequest $request, Consultation $consultation): JsonResponse
     {
+        $this->assertAwaitingPayment($consultation);
+
         $this->payments->submitConsultationReceipt(
             $consultation,
             $request->file('receipt'),
@@ -87,6 +92,29 @@ class ConsultationController extends Controller
             'message' => 'Receipt received. The doctor will reply once it is confirmed.',
             'data' => new ConsultationResource($consultation->refresh()->load(['doctor', 'payment'])),
         ], 201);
+    }
+
+    /**
+     * A receipt is accepted while the consultation still waits for money and
+     * no receipt is already sitting with staff. Replacing a verified receipt
+     * would send settled money back into the review queue, and replacing one
+     * under review would swap the slip out from under the reviewer.
+     *
+     * @throws BookingNotAllowedException
+     */
+    private function assertAwaitingPayment(Consultation $consultation): void
+    {
+        $paymentStatus = $consultation->payment?->status;
+
+        if (
+            $consultation->status !== ConsultationStatus::PendingPayment
+            || in_array($paymentStatus, [PaymentStatus::Submitted, PaymentStatus::Verified], true)
+        ) {
+            throw new BookingNotAllowedException(
+                'This consultation is not waiting for a payment receipt.',
+                'status',
+            );
+        }
     }
 
     public function storeMessage(StoreConsultationMessageRequest $request, Consultation $consultation): JsonResponse

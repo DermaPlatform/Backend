@@ -79,6 +79,7 @@ function accessMatrix(): array
         'appointments.cancel' => PATIENT,
         'appointments.receipt.store' => PATIENT,
         'appointments.receipt.show' => SIGNED_IN,
+        'payments.receipt.show' => SIGNED_IN,
 
         // Consultations are clinical: the secretary may list (and gets
         // nothing) but opens, reads and writes none of them.
