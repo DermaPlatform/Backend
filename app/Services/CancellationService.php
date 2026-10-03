@@ -69,8 +69,7 @@ class CancellationService
          * AppointmentStatus::blocking(), so availability stops counting it
          * the moment this commits. Clearing the hold keeps the row honest
          * rather than leaving a deadline on something already closed.
-         */
-        /*
+         *
          * A receipt still under review is money the patient has already
          * transferred. Once the appointment is gone nobody will verify it,
          * so it is flagged for the clinic to settle alongside verified ones.
