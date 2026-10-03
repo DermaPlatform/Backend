@@ -1080,6 +1080,7 @@ POST /payments/{id}/verify           → الموعد يصير approved
 | `appointment.booked_by_phone` | حجز تلفوني من العيادة | `appointment` | `patient_id`, `doctor_id`, `start_at`, `price` |
 | `appointment.cancelled_by_clinic` | إلغاء من العيادة | `appointment` | `reason`, `refund_required` |
 | `appointment.duration_changed` | تعديل مدة موعد | `appointment` | `from_minutes`, `to_minutes` |
+| `appointment.completed` | تعليم موعد مكتملاً | `appointment` | `price` |
 
 كلمات السر لا تُكتب في السجل إطلاقاً.
 
@@ -1190,6 +1191,11 @@ POST /payments/{id}/verify           → الموعد يصير approved
 
 يغيّر `end_at` فقط. إن تداخلت المدة الجديدة مع موعد آخر ← `409`. موعد مغلق ← `422`.
 
+### 16.6.1 تعليم الموعد مكتملاً — `POST /staff/appointments/{id}/complete`
+
+بلا body. للطبيب أو سكرتيره أو الأدمن. الموعد يجب أن يكون `approved` وأن يكون وقته قد بدأ، وإلا `422`.
+**هذا ما يُدخل الموعد في تقرير دخل الطبيب.**
+
 ### 16.7 جدول الدوام — `/staff/schedules`
 
 كل صف وردية واحدة في يوم واحد من الأسبوع. التعديل يظهر للمرضى فوراً.
@@ -1229,6 +1235,7 @@ POST /payments/{id}/verify           → الموعد يصير approved
 | `POST` | `/api/v1/staff/appointments` | `201` / `409` |
 | `POST` | `/api/v1/staff/appointments/{id}/cancel` | `200` |
 | `PATCH` | `/api/v1/staff/appointments/{id}/duration` | `200` / `409` |
+| `POST` | `/api/v1/staff/appointments/{id}/complete` | `200` |
 | `GET` | `/api/v1/staff/schedules` | `200` |
 | `POST` | `/api/v1/staff/schedules` | `201` |
 | `PUT` | `/api/v1/staff/schedules/{id}` | `200` / `409` |
@@ -1236,3 +1243,123 @@ POST /payments/{id}/verify           → الموعد يصير approved
 | `GET` | `/api/v1/staff/schedule-exceptions` | `200` |
 | `POST` | `/api/v1/staff/schedule-exceptions` | `201` / `409` |
 | `DELETE` | `/api/v1/staff/schedule-exceptions/{id}` | `200` |
+
+---
+
+## 17. أدوات الطبيب — `/doctor/*`
+
+كل المسارات هنا تحت `/api/v1/doctor`، بتوكن بوابة `clinic` ودور **طبيب فقط**. السكرتير والأدمن ← `403`.
+
+### 17.1 خدماتي وأسعاري
+
+#### `GET /doctor/services`
+
+كتالوج المنصة كاملاً (الخدمات الفعّالة)، وكل خدمة معها شروط الطبيب أو `null` إن لم يسعّرها بعد. بلا pagination.
+
+```json
+{ "id": 4, "name": "ليزر", "category": "تجميلي", "image_url": null, "default_duration_minutes": 30,
+  "offering": { "price": "150.00", "duration_minutes": 45, "is_active": true } }
+```
+
+#### `PUT /doctor/services/{service}`
+
+يسعّر خدمة لأول مرة أو يعدّل شروطها.
+
+| الحقل | القواعد |
+|---|---|
+| `price` | مطلوب، رقم ≥ 0 بخانتين عشريتين كحد أقصى |
+| `duration_minutes` | مطلوب، من 5 إلى 480 |
+| `is_active` | اختياري. `false` يخفي الخدمة من صفحة الطبيب دون فقدان السعر. إن لم يُرسل يبقى كما هو (`true` لخدمة جديدة) |
+
+المواعيد المحجوزة سابقاً **لا تتأثر**: سعرها ومدتها محفوظان عليها منذ لحظة الحجز.
+
+### 17.2 التفضيلات — `GET` · `PUT /doctor/preferences`
+
+```json
+{ "accepts_appointments": true, "accepts_online_consultations": false }
+```
+
+كلا الحقلين اختياري في `PUT`. الإيقاف يمنع العمل **الجديد** فقط؛ المحجوز والمدفوع يستمر.
+
+### 17.3 تقرير الدخل — `GET /doctor/income`
+
+| باراميتر | الوصف |
+|---|---|
+| `from` · `to` | `YYYY-MM-DD` بتوقيت العيادة. الافتراضي: الشهر الحالي كاملاً |
+
+```json
+{
+  "from": "2026-09-01", "to": "2026-09-30", "total": "370.50",
+  "appointments": {
+    "count": 3, "total": "330.50",
+    "by_service": [ { "service_id": 4, "name": "ليزر", "count": 2, "total": "250.50" } ]
+  },
+  "consultations": { "count": 1, "total": "40.00" }
+}
+```
+
+- **المواعيد:** المكتملة (`completed`) فقط، مؤرَّخة بوقت الموعد.
+- **الاستشارات:** المدفوعة التي ردّ عليها الطبيب، مؤرَّخة بأول رد.
+- الأرقام من السعر المحفوظ على الموعد/الاستشارة، فتعديل السعر اليوم **لا يغيّر** دخل شهر مضى.
+- هذا تتبّع دخل لا محاسبة: لا مصاريف ولا ضرائب.
+
+### 17.4 الملاحظات الطبية
+
+ملاحظة واحدة لكل زيارة. **لا يقرؤها ولا يكتبها إلا طبيب الموعد نفسه** — لا السكرتير ولا الأدمن ولا طبيب آخر ولا المريض (`403`).
+
+- `GET /doctor/appointments/{id}/medical-note` ← الملاحظة أو `data: null`.
+- `PUT /doctor/appointments/{id}/medical-note` · `{ "notes": "..." }` ← ينشئها أو يعدّلها. الموعد يجب أن يكون `approved` أو `completed`.
+
+#### `GET /doctor/patients/{id}/history`
+
+أرشيف زيارات المريض **لهذا الطبيب فقط**، الأحدث أولاً، مع ملاحظة كل زيارة. من لم يزر هذا الطبيب ← `404`.
+
+```json
+{
+  "patient": { "id": 7, "name": "أحمد", "birth_date": "1990-01-01", "age": 36, "gender": "male" },
+  "visits": [
+    { "appointment_id": 31, "status": "completed", "start_at": "2026-09-20T10:00:00+03:00",
+      "service": "ليزر", "note": { "id": 5, "appointment_id": 31, "notes": "..." } }
+  ]
+}
+```
+
+### 17.5 جدول مرجعي
+
+| الطريقة | المسار | نجاح |
+|---|---|---|
+| `GET` | `/api/v1/doctor/services` | `200` |
+| `PUT` | `/api/v1/doctor/services/{service}` | `200` |
+| `GET` · `PUT` | `/api/v1/doctor/preferences` | `200` |
+| `GET` | `/api/v1/doctor/income` | `200` |
+| `GET` · `PUT` | `/api/v1/doctor/appointments/{id}/medical-note` | `200` |
+| `GET` | `/api/v1/doctor/patients/{id}/history` | `200` |
+
+---
+
+## 18. الإشعارات — داخل المنصة
+
+إشعارات تُحفظ في قاعدة البيانات وتُقرأ من التطبيق (جرس). **لا إيميل ولا واتساب.** لأي مستخدم مسجَّل الدخول، وكلٌّ يرى إشعاراته فقط.
+
+الـ API يرسل **النوع والمعرّفات لا الجملة**؛ الصياغة على الفرونت.
+
+| `kind` | لمن | متى | `details` |
+|---|---|---|---|
+| `appointment.confirmed` | المريض | تم التحقق من إيصال موعده | `appointment_id` |
+| `payment.rejected` | المريض | رُفض إيصاله | `appointment_id` أو `consultation_id`، `reason` |
+| `appointment.cancelled_by_clinic` | المريض | العيادة ألغت موعده | `appointment_id`, `reason`, `refund_required` |
+| `consultation.opened` | المريض | تم التحقق من إيصال استشارته | `consultation_id` |
+| `consultation.replied` | المريض | الطبيب ردّ على الاستشارة | `consultation_id` |
+
+### `GET /notifications`
+
+الأحدث أولاً، مع pagination. `?unread=1` لغير المقروءة فقط. الرد يحمل `unread_count` بجانب `data` لرسم الجرس بطلب واحد.
+
+```json
+{ "id": "9b1c…", "kind": "payment.rejected", "details": { "appointment_id": 31, "reason": "الصورة غير واضحة" },
+  "read_at": null, "created_at": "2026-10-03T09:00:00+00:00" }
+```
+
+### `POST /notifications/{id}/read` · `POST /notifications/read-all`
+
+إشعار يخص مستخدماً آخر ← `404`.

@@ -75,6 +75,17 @@ class AppointmentPolicy
     }
 
     /**
+     * Reading or writing the clinical note of a visit. The doctor who saw
+     * the patient and nobody else: the note is the diagnosis, which is the
+     * one thing the secretary's role is built to keep out of, and the admin
+     * runs the platform, not the clinic.
+     */
+    public function annotate(User $user, Appointment $appointment): bool
+    {
+        return $user->role === UserRole::Doctor && $user->id === $appointment->doctor_id;
+    }
+
+    /**
      * A secretary is bound to exactly one doctor.
      *
      * The null check is not defensive noise. Without it a secretary whose
