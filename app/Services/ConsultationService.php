@@ -58,7 +58,8 @@ class ConsultationService
                         config('nadara.uploads.consultation_directory'),
                         config('nadara.uploads.private_disk'),
                     ),
-                    'mime' => $photo->getClientMimeType(),
+                    // Detected from the bytes, not the type the browser claimed.
+                    'mime' => $photo->getMimeType(),
                     'size' => $photo->getSize(),
                 ]);
             }
