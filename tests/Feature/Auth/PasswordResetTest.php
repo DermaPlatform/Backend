@@ -17,7 +17,7 @@ it('sends a reset link to a known email', function () {
 
 it('points the reset link at the frontend application', function () {
     Notification::fake();
-    config(['app.frontend_url' => 'https://app.nadara.test']);
+    config(['app.frontend_url' => 'https://app.nadara.test', 'nadara.portals.patient.frontend_url' => null]);
     $user = User::factory()->create();
 
     $this->postJson(route('api.v1.auth.password.forgot'), ['email' => $user->email])->assertOk();
