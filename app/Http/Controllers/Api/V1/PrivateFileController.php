@@ -81,6 +81,10 @@ class PrivateFileController extends Controller
 
         abort_unless($disk->exists($path), 404);
 
-        return $disk->response($path);
+        /*
+         * A receipt or a clinical photo must not linger in a shared or proxy
+         * cache once the person who opened it has signed out.
+         */
+        return $disk->response($path, null, ['Cache-Control' => 'private, no-store']);
     }
 }

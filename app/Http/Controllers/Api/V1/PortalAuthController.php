@@ -82,7 +82,11 @@ abstract class PortalAuthController extends Controller
      */
     protected function authPayload(User $user, string $deviceName): array
     {
-        $token = $user->createToken($deviceName, [$this->portal()->ability()]);
+        $token = $user->createToken(
+            $deviceName,
+            [$this->portal()->ability()],
+            now()->addMinutes((int) config('sanctum.expiration')),
+        );
 
         return [
             'user' => (new UserResource($user))->asOwner(),

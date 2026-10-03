@@ -36,3 +36,21 @@ it('counts each signed in user on their own, even from one address', function ()
         ->getJson(route('api.v1.profile.show'))
         ->assertOk();
 });
+
+it('counts each user on their own when they send a real bearer token', function (): void {
+    $first = User::factory()->patient()->create();
+    $second = User::factory()->patient()->create();
+
+    $firstToken = $first->createToken('web', ['portal:patient'])->plainTextToken;
+    $secondToken = $second->createToken('web', ['portal:patient'])->plainTextToken;
+
+    for ($i = 0; $i < 3; $i++) {
+        $this->withToken($firstToken)->getJson(route('api.v1.profile.show'))->assertOk();
+        $this->app['auth']->forgetGuards();
+    }
+
+    $this->withToken($firstToken)->getJson(route('api.v1.profile.show'))->assertStatus(429);
+    $this->app['auth']->forgetGuards();
+
+    $this->withToken($secondToken)->getJson(route('api.v1.profile.show'))->assertOk();
+});

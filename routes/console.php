@@ -22,3 +22,8 @@ Artisan::command('inspire', function () {
 Schedule::command('appointments:release-expired-holds')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+/*
+ * Expired tokens no longer authenticate, but the rows stay until pruned.
+ */
+Schedule::command('sanctum:prune-expired --hours=24')->daily();
