@@ -49,6 +49,7 @@ class BookingService
         }
 
         return DB::transaction(function () use ($patient, $doctor, $service, $slot): Appointment {
+            $this->assertHoldAllowance($patient);
             $this->assertSlotIsFree($doctor->id, $slot['start'], $slot['end']);
 
             return Appointment::create([
@@ -208,6 +209,31 @@ class BookingService
 
         if ($taken) {
             throw $message === null ? new SlotUnavailableException : new SlotUnavailableException($message);
+        }
+    }
+
+    /**
+     * Refuse another unpaid hold once the patient already has the maximum
+     * running. Paying for or cancelling one frees the allowance again.
+     *
+     * @throws BookingNotAllowedException
+     */
+    private function assertHoldAllowance(User $patient): void
+    {
+        $limit = (int) config('nadara.max_open_holds_per_patient');
+
+        $openHolds = Appointment::query()
+            ->where('patient_id', $patient->id)
+            ->where('status', AppointmentStatus::PendingPayment)
+            ->where('hold_expires_at', '>', now())
+            ->lockForUpdate()
+            ->count();
+
+        if ($openHolds >= $limit) {
+            throw new BookingNotAllowedException(
+                'You already have unpaid bookings waiting. Upload their receipts or cancel them before booking again.',
+                'start_at',
+            );
         }
     }
 

@@ -269,3 +269,27 @@ describe('consultations', function (): void {
         }
     });
 });
+
+describe('unpaid holds', function (): void {
+    it('caps how many unpaid holds one patient keeps at once', function (): void {
+        config(['nadara.max_open_holds_per_patient' => 2]);
+
+        bookAt($this->day->setTime(9, 0))->assertCreated();
+        bookAt($this->day->setTime(10, 0))->assertCreated();
+
+        bookAt($this->day->setTime(11, 0))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('start_at');
+
+        expect(Appointment::count())->toBe(2);
+    });
+
+    it('frees the allowance once a hold is paid for or has lapsed', function (): void {
+        config(['nadara.max_open_holds_per_patient' => 1]);
+
+        Appointment::factory()->holdExpired()->create(['patient_id' => $this->patient->id]);
+        Appointment::factory()->awaitingReview()->create(['patient_id' => $this->patient->id]);
+
+        bookAt($this->day->setTime(9, 0))->assertCreated();
+    });
+});
