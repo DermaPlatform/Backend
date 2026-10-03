@@ -821,7 +821,7 @@ POST /payments/{id}/verify           → الموعد يصير approved
 |---|---|
 | `201` | نجح الحجز، الحالة `pending_payment` |
 | **`409`** | **الفترة حُجزت قبلك** — أعد تحميل `/availability` |
-| `422` | الطبيب لا يقدّم الخدمة / اشتراكه منتهٍ / الوقت في الماضي |
+| `422` | الطبيب لا يقدّم الخدمة / اشتراكه منتهٍ / الوقت في الماضي / الوقت خارج دوام الطبيب أو في إجازته (`start_at`) |
 | `403` | لست مريضاً |
 
 > **`409` وليس `422` عمداً.** طلبك كان صحيحاً، لكن أحدهم سبقك بجزء من الثانية. الشيء الوحيد المفيد هو إعادة تحميل الفترات لا تصحيح المدخلات.
@@ -847,7 +847,7 @@ POST /payments/{id}/verify           → الموعد يصير approved
 { "reason": "ظرف طارئ" }
 ```
 
-`422` إن كان الموعد مغلقاً أصلاً، أو إن بقي أقل من **24 ساعة** على موعده. الرد يحمل `refund_required` — يصير `true` إذا كان المبلغ قد تُحقِّق منه فعلاً.
+`422` إن كان الموعد مغلقاً أصلاً، أو إن بقي أقل من **24 ساعة** على موعده. الرد يحمل `refund_required` — يصير `true` إذا كان المبلغ قد تُحقِّق منه، أو كان إيصاله ما زال قيد المراجعة (المريض حوّل المال فعلاً).
 
 ---
 
@@ -863,14 +863,22 @@ POST /payments/{id}/verify           → الموعد يصير approved
 
 النتيجة: الدفعة `submitted`، الموعد `awaiting_review`، و`hold_expires_at` يُمسَح (الفترة لم تعد مؤقتة). يُولَّد `receipt_number` بصيغة `NDR-2026-000001`.
 
+`422` على `status` إذا انتهت مهلة الحجز قبل وصول الإيصال: الموعد يصير `expired` فوراً، وعلى المريض الحجز من جديد.
+
 #### `GET /appointments/{id}/payment-receipt` 🔒
 
 يرجّع **الملف نفسه** لا JSON. مسموح لصاحب الحجز، وللطبيب، ولسكرتيره، وللأدمن — لا أحد غيرهم. الملفات على قرص خاص ولا يوجد رابط عام لها إطلاقاً.
+
+#### `GET /payments/{id}/receipt` 🔒
+
+يرجّع ملف الإيصال لأي دفعة، موعداً كانت أو استشارة. هذا ما يفتحه الطاقم من طابور الإيصالات، وهو الرابط في `receipt_url`. الصلاحية حسب الدفعة: صاحبها، أو طبيبها، أو سكرتيره، أو الأدمن. السكرتير يرى إيصال الاستشارة دون أن يرى الاستشارة نفسها.
 
 #### `POST /payments/{id}/verify` و `/reject` 🔒 طاقم
 
 `verify` ← الموعد يصير `approved` (أو الاستشارة `awaiting_reply`).
 `reject` ← يتطلب `reason`، والموعد يعود `pending_payment` **بمهلة جديدة** ليرسل المريض إيصالاً صحيحاً.
+
+`422` إذا لم يعد الموعد `awaiting_review` (ألغاه المريض مثلاً) أو لم تعد الاستشارة `pending_payment`.
 
 **بوابتان فقط:** توكن `clinic` أو `admin`. توكن المريض يُرَدّ بـ `403` (`Invalid ability provided.`) قبل أن تُستشار الـ Policy أصلاً.
 
@@ -898,8 +906,8 @@ POST /payments/{id}/verify           → الموعد يصير approved
 |---|---|
 | `GET /consultations` | مريضك/طبيبك/الأدمن — **السكرتير يرى `[]`** |
 | `GET /consultations/{id}` | يحمل `messages` و `attachments` |
-| `POST /consultations/{id}/payment-receipt` | نفس قواعد إيصال الموعد |
-| `POST /consultations/{id}/messages` | `message` مطلوب، 2–5000 حرف |
+| `POST /consultations/{id}/payment-receipt` | نفس قواعد إيصال الموعد. `422` إذا كان هناك إيصال قيد المراجعة أو مؤكَّد |
+| `POST /consultations/{id}/messages` | `message` مطلوب، 2–5000 حرف. `422` قبل تأكيد الدفع وبعد إغلاق الاستشارة |
 | `GET /consultations/{id}/attachments/{attachment}` | يرجّع الصورة نفسها |
 
 ردّ الطبيب ← الحالة `replied`. ردّ المريض ← تعود `awaiting_reply` حتى لا تضيع متابعة بلا جواب.
@@ -921,6 +929,7 @@ POST /payments/{id}/verify           → الموعد يصير approved
 | `POST` | `/api/v1/appointments/{id}/cancel` | 🔒 مريض | `200` |
 | `POST` | `/api/v1/appointments/{id}/payment-receipt` | 🔒 مريض | `201` |
 | `GET` | `/api/v1/appointments/{id}/payment-receipt` | 🔒 | `200` (ملف) |
+| `GET` | `/api/v1/payments/{id}/receipt` | 🔒 | `200` (ملف) |
 | `POST` | `/api/v1/payments/{id}/verify` | 🔒 `clinic`/`admin` | `200` |
 | `POST` | `/api/v1/payments/{id}/reject` | 🔒 `clinic`/`admin` | `200` |
 | `GET` | `/api/v1/consultations` | 🔒 | `200` |
