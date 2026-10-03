@@ -2,19 +2,25 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\AppointmentStatus;
+use App\Enums\AuditAction;
 use App\Enums\UserRole;
+use App\Exceptions\BookingNotAllowedException;
 use App\Http\Requests\Api\V1\CancelAppointmentByClinicRequest;
 use App\Http\Requests\Api\V1\ChangeAppointmentDurationRequest;
 use App\Http\Requests\Api\V1\StorePhoneAppointmentRequest;
 use App\Http\Resources\Api\V1\AppointmentResource;
 use App\Models\Appointment;
+use App\Models\AuditLog;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\BookingService;
 use App\Services\CancellationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -86,6 +92,40 @@ class StaffAppointmentController extends StaffController
         return response()->json([
             'message' => 'Appointment duration updated.',
             'data' => new AppointmentResource($resized->load(['patient', 'doctor', 'service', 'payment'])),
+        ]);
+    }
+
+    /**
+     * Mark a visit as having taken place.
+     *
+     * This is what moves an appointment into the doctor's income, so it is
+     * refused for a visit that has not started yet and written to the trail.
+     *
+     * @throws BookingNotAllowedException
+     */
+    public function complete(Request $request, Appointment $appointment): JsonResponse
+    {
+        Gate::authorize('manage', $appointment);
+
+        if ($appointment->status !== AppointmentStatus::Approved) {
+            throw new BookingNotAllowedException('Only a confirmed appointment can be completed.', 'status');
+        }
+
+        if ($appointment->start_at->isFuture()) {
+            throw new BookingNotAllowedException('This appointment has not started yet.', 'start_at');
+        }
+
+        DB::transaction(function () use ($request, $appointment): void {
+            $appointment->update(['status' => AppointmentStatus::Completed]);
+
+            AuditLog::record($request->user(), AuditAction::AppointmentCompleted, $appointment, [
+                'price' => $appointment->price,
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Appointment marked as completed.',
+            'data' => new AppointmentResource($appointment->load(['patient', 'doctor', 'service', 'payment'])),
         ]);
     }
 

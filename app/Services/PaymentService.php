@@ -5,12 +5,14 @@ namespace App\Services;
 use App\Enums\AppointmentStatus;
 use App\Enums\AuditAction;
 use App\Enums\ConsultationStatus;
+use App\Enums\NotificationKind;
 use App\Enums\PaymentStatus;
 use App\Models\Appointment;
 use App\Models\AuditLog;
 use App\Models\Consultation;
 use App\Models\Payment;
 use App\Models\User;
+use App\Notifications\ClinicUpdate;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -133,6 +135,13 @@ class PaymentService
                 'consultation_id' => $payment->consultation_id,
             ]);
 
+            $payment->patient->notify(new ClinicUpdate(
+                $payment->appointment_id !== null
+                    ? NotificationKind::AppointmentConfirmed
+                    : NotificationKind::ConsultationOpened,
+                $this->subjectOf($payment),
+            ));
+
             return $payment->refresh();
         });
     }
@@ -168,8 +177,26 @@ class PaymentService
                 'consultation_id' => $payment->consultation_id,
             ]);
 
+            $payment->patient->notify(new ClinicUpdate(NotificationKind::PaymentRejected, [
+                ...$this->subjectOf($payment),
+                'reason' => $reason,
+            ]));
+
             return $payment->refresh();
         });
+    }
+
+    /**
+     * What a payment was for, as a notification points at it.
+     *
+     * @return array<string, int>
+     */
+    private function subjectOf(Payment $payment): array
+    {
+        return array_filter([
+            'appointment_id' => $payment->appointment_id,
+            'consultation_id' => $payment->consultation_id,
+        ]);
     }
 
     /**

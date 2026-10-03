@@ -16,6 +16,7 @@ enum AuditAction: string
     case AppointmentBookedByPhone = 'appointment.booked_by_phone';
     case AppointmentCancelledByClinic = 'appointment.cancelled_by_clinic';
     case AppointmentDurationChanged = 'appointment.duration_changed';
+    case AppointmentCompleted = 'appointment.completed';
     case AccountCreated = 'account.created';
     case AccountActivated = 'account.activated';
     case AccountDeactivated = 'account.deactivated';

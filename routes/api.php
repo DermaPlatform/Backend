@@ -16,6 +16,11 @@ use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\ClinicAuthController;
 use App\Http\Controllers\Api\V1\ConsultationController;
 use App\Http\Controllers\Api\V1\DoctorController;
+use App\Http\Controllers\Api\V1\DoctorIncomeController;
+use App\Http\Controllers\Api\V1\DoctorOfferingController;
+use App\Http\Controllers\Api\V1\DoctorPreferenceController;
+use App\Http\Controllers\Api\V1\MedicalNoteController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PatientAuthController;
 use App\Http\Controllers\Api\V1\PaymentReviewController;
 use App\Http\Controllers\Api\V1\PrivateFileController;
@@ -188,12 +193,55 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
                 ->name('appointments.cancel');
             Route::patch('/appointments/{appointment}/duration', [StaffAppointmentController::class, 'updateDuration'])
                 ->name('appointments.duration');
+            Route::post('/appointments/{appointment}/complete', [StaffAppointmentController::class, 'complete'])
+                ->name('appointments.complete');
 
             Route::apiResource('schedules', StaffScheduleController::class)->except('show');
             Route::apiResource('schedule-exceptions', StaffScheduleExceptionController::class)
                 ->only(['index', 'store', 'destroy'])
                 ->parameters(['schedule-exceptions' => 'exception']);
         });
+
+    /*
+    |----------------------------------------------------------------------
+    | Doctor tools (US-020, US-027)
+    |----------------------------------------------------------------------
+    |
+    | The doctor's own business: what they offer, whether they take new
+    | work, what they earned, and their clinical notes. A secretary shares
+    | the clinic portal but none of this.
+    |
+    */
+    Route::middleware(['auth:sanctum', Portal::middlewareAllowing(Portal::Clinic), 'role:doctor'])
+        ->prefix('doctor')
+        ->name('doctor.')
+        ->group(function (): void {
+            Route::get('/services', [DoctorOfferingController::class, 'index'])->name('services.index');
+            Route::put('/services/{service}', [DoctorOfferingController::class, 'update'])->name('services.update');
+
+            Route::get('/preferences', [DoctorPreferenceController::class, 'show'])->name('preferences.show');
+            Route::put('/preferences', [DoctorPreferenceController::class, 'update'])->name('preferences.update');
+
+            Route::get('/income', DoctorIncomeController::class)->name('income');
+
+            Route::get('/appointments/{appointment}/medical-note', [MedicalNoteController::class, 'show'])
+                ->name('medical-notes.show');
+            Route::put('/appointments/{appointment}/medical-note', [MedicalNoteController::class, 'update'])
+                ->name('medical-notes.update');
+            Route::get('/patients/{patient}/history', [MedicalNoteController::class, 'history'])
+                ->name('patients.history');
+        });
+
+    /*
+    |----------------------------------------------------------------------
+    | In-app notifications
+    |----------------------------------------------------------------------
+    */
+    Route::middleware('auth:sanctum')->prefix('notifications')->name('notifications.')->group(function (): void {
+        Route::get('/', [NotificationController::class, 'index'])->name('index');
+        Route::post('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
+        Route::post('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
+    });
 
     /*
     |----------------------------------------------------------------------

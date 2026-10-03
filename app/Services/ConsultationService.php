@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Enums\ConsultationStatus;
+use App\Enums\NotificationKind;
 use App\Exceptions\BookingNotAllowedException;
 use App\Models\Consultation;
 use App\Models\Service;
 use App\Models\User;
+use App\Notifications\ClinicUpdate;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
@@ -84,8 +86,14 @@ class ConsultationService
 
             $consultation->update([
                 'status' => $isDoctor ? ConsultationStatus::Replied : ConsultationStatus::AwaitingReply,
-                'replied_at' => $isDoctor ? now() : $consultation->replied_at,
+                'replied_at' => $isDoctor ? ($consultation->replied_at ?? now()) : $consultation->replied_at,
             ]);
+
+            if ($isDoctor) {
+                $consultation->patient->notify(new ClinicUpdate(NotificationKind::ConsultationReplied, [
+                    'consultation_id' => $consultation->id,
+                ]));
+            }
 
             return $consultation->refresh();
         });

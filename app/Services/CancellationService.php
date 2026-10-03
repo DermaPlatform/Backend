@@ -4,11 +4,13 @@ namespace App\Services;
 
 use App\Enums\AppointmentStatus;
 use App\Enums\AuditAction;
+use App\Enums\NotificationKind;
 use App\Enums\PaymentStatus;
 use App\Exceptions\BookingNotAllowedException;
 use App\Models\Appointment;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Notifications\ClinicUpdate;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -49,6 +51,12 @@ class CancellationService
                 'reason' => $reason,
                 'refund_required' => $cancelled->refund_required,
             ]);
+
+            $cancelled->patient->notify(new ClinicUpdate(NotificationKind::AppointmentCancelledByClinic, [
+                'appointment_id' => $cancelled->id,
+                'reason' => $reason,
+                'refund_required' => $cancelled->refund_required,
+            ]));
 
             return $cancelled;
         });
