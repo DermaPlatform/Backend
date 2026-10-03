@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Enums\AppointmentStatus;
+use App\Enums\AuditAction;
 use App\Exceptions\BookingNotAllowedException;
 use App\Exceptions\SlotUnavailableException;
 use App\Models\Appointment;
+use App\Models\AuditLog;
 use App\Models\Service;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -22,6 +24,8 @@ use Illuminate\Support\Facades\DB;
  */
 class BookingService
 {
+    public function __construct(private readonly PaymentService $payments) {}
+
     /**
      * Hold a slot for a patient, pending payment.
      *
@@ -30,47 +34,169 @@ class BookingService
      */
     public function book(User $patient, User $doctor, Service $service, CarbonInterface $startAt): Appointment
     {
-        $offering = $this->offeringFor($doctor, $service);
+        $slot = $this->slotFor($doctor, $service, $startAt);
 
-        $this->assertDoctorIsBookable($doctor);
-
-        $start = CarbonImmutable::instance($startAt)->utc();
-        $end = $start->addMinutes((int) $offering->pivot->duration_minutes);
-
-        if ($start->isPast()) {
-            throw new BookingNotAllowedException('That appointment time has already passed.', 'start_at');
-        }
-
-        return DB::transaction(function () use ($patient, $doctor, $service, $offering, $start, $end): Appointment {
-            /*
-             * Locking the doctor's rows for the surrounding day rather than the
-             * slot alone is deliberate: on an indexed range scan InnoDB also
-             * holds the gaps, which is what stops a second transaction from
-             * inserting into a slot this one has just found empty.
-             */
-            $taken = Appointment::query()
-                ->where('doctor_id', $doctor->id)
-                ->whereBetween('start_at', [$start->startOfDay(), $start->endOfDay()])
-                ->overlapping($start, $end)
-                ->occupyingSlot()
-                ->lockForUpdate()
-                ->exists();
-
-            if ($taken) {
-                throw new SlotUnavailableException;
-            }
+        return DB::transaction(function () use ($patient, $doctor, $service, $slot): Appointment {
+            $this->assertSlotIsFree($doctor->id, $slot['start'], $slot['end']);
 
             return Appointment::create([
                 'patient_id' => $patient->id,
                 'doctor_id' => $doctor->id,
                 'service_id' => $service->id,
-                'start_at' => $start,
-                'end_at' => $end,
-                'price' => $offering->pivot->price,
+                'start_at' => $slot['start'],
+                'end_at' => $slot['end'],
+                'price' => $slot['price'],
                 'status' => AppointmentStatus::PendingPayment,
                 'hold_expires_at' => now()->addMinutes((int) config('nadara.booking_hold_minutes')),
             ]);
         });
+    }
+
+    /**
+     * Book for a patient who called the clinic (US-026).
+     *
+     * There is no hold and no receipt to wait for: the secretary is taking
+     * the booking in person and the patient pays in cash, so the appointment
+     * is confirmed and its payment settled in the same step.
+     *
+     * @throws BookingNotAllowedException when this doctor cannot take the booking at all
+     * @throws SlotUnavailableException when the slot is already taken
+     */
+    public function bookByPhone(
+        User $staff,
+        User $patient,
+        User $doctor,
+        Service $service,
+        CarbonInterface $startAt,
+    ): Appointment {
+        $slot = $this->slotFor($doctor, $service, $startAt);
+
+        return DB::transaction(function () use ($staff, $patient, $doctor, $service, $slot): Appointment {
+            $this->assertSlotIsFree($doctor->id, $slot['start'], $slot['end']);
+
+            $appointment = Appointment::create([
+                'patient_id' => $patient->id,
+                'doctor_id' => $doctor->id,
+                'service_id' => $service->id,
+                'start_at' => $slot['start'],
+                'end_at' => $slot['end'],
+                'price' => $slot['price'],
+                'status' => AppointmentStatus::Approved,
+                'hold_expires_at' => null,
+                'approved_by' => $staff->id,
+                'approved_at' => now(),
+            ]);
+
+            $this->payments->recordCashPayment($appointment, $staff);
+
+            AuditLog::record($staff, AuditAction::AppointmentBookedByPhone, $appointment, [
+                'patient_id' => $patient->id,
+                'doctor_id' => $doctor->id,
+                'start_at' => $slot['start']->toIso8601String(),
+                'price' => $slot['price'],
+            ]);
+
+            return $appointment;
+        });
+    }
+
+    /**
+     * Give an open appointment a different length (US-015).
+     *
+     * The doctor's listed duration is an estimate. The clinic knows that this
+     * patient's session needs an hour, so the end time moves, as long as it
+     * does not run into whoever is booked next.
+     *
+     * @throws BookingNotAllowedException when the appointment is already closed
+     * @throws SlotUnavailableException when the new length overlaps another appointment
+     */
+    public function changeDuration(Appointment $appointment, User $staff, int $durationMinutes): Appointment
+    {
+        if (! in_array($appointment->status, AppointmentStatus::blocking(), true)) {
+            throw new BookingNotAllowedException('Only an open appointment can be given a new duration.', 'status');
+        }
+
+        $start = $appointment->start_at;
+        $end = $start->addMinutes($durationMinutes);
+
+        return DB::transaction(function () use ($appointment, $staff, $start, $end, $durationMinutes): Appointment {
+            $this->assertSlotIsFree(
+                $appointment->doctor_id,
+                $start,
+                $end,
+                except: $appointment,
+                message: 'The new duration runs into another appointment.',
+            );
+
+            $previousMinutes = (int) $start->diffInMinutes($appointment->end_at);
+
+            $appointment->update(['end_at' => $end]);
+
+            AuditLog::record($staff, AuditAction::AppointmentDurationChanged, $appointment, [
+                'from_minutes' => $previousMinutes,
+                'to_minutes' => $durationMinutes,
+            ]);
+
+            return $appointment->refresh();
+        });
+    }
+
+    /**
+     * The window and price a booking of this service with this doctor takes.
+     *
+     * @return array{start: CarbonImmutable, end: CarbonImmutable, price: string}
+     *
+     * @throws BookingNotAllowedException
+     */
+    private function slotFor(User $doctor, Service $service, CarbonInterface $startAt): array
+    {
+        $offering = $this->offeringFor($doctor, $service);
+
+        $this->assertDoctorIsBookable($doctor);
+
+        $start = CarbonImmutable::instance($startAt)->utc();
+
+        if ($start->isPast()) {
+            throw new BookingNotAllowedException('That appointment time has already passed.', 'start_at');
+        }
+
+        return [
+            'start' => $start,
+            'end' => $start->addMinutes((int) $offering->pivot->duration_minutes),
+            'price' => $offering->pivot->price,
+        ];
+    }
+
+    /**
+     * Must run inside the transaction that then writes the appointment.
+     *
+     * @throws SlotUnavailableException
+     */
+    private function assertSlotIsFree(
+        int $doctorId,
+        CarbonImmutable $start,
+        CarbonImmutable $end,
+        ?Appointment $except = null,
+        ?string $message = null,
+    ): void {
+        /*
+         * Locking the doctor's rows for the surrounding day rather than the
+         * slot alone is deliberate: on an indexed range scan InnoDB also
+         * holds the gaps, which is what stops a second transaction from
+         * inserting into a slot this one has just found empty.
+         */
+        $taken = Appointment::query()
+            ->where('doctor_id', $doctorId)
+            ->whereBetween('start_at', [$start->startOfDay(), $start->endOfDay()])
+            ->when($except !== null, fn ($query) => $query->whereKeyNot($except->id))
+            ->overlapping($start, $end)
+            ->occupyingSlot()
+            ->lockForUpdate()
+            ->exists();
+
+        if ($taken) {
+            throw $message === null ? new SlotUnavailableException : new SlotUnavailableException($message);
+        }
     }
 
     /**

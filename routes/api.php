@@ -20,6 +20,11 @@ use App\Http\Controllers\Api\V1\PatientAuthController;
 use App\Http\Controllers\Api\V1\PaymentReviewController;
 use App\Http\Controllers\Api\V1\PrivateFileController;
 use App\Http\Controllers\Api\V1\ProfileController;
+use App\Http\Controllers\Api\V1\StaffAppointmentController;
+use App\Http\Controllers\Api\V1\StaffPatientController;
+use App\Http\Controllers\Api\V1\StaffPaymentController;
+use App\Http\Controllers\Api\V1\StaffScheduleController;
+use App\Http\Controllers\Api\V1\StaffScheduleExceptionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -156,6 +161,39 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
                 ->name('payments.reject');
         });
     });
+
+    /*
+    |----------------------------------------------------------------------
+    | Clinic operations (US-013, US-014, US-015, US-016, US-026)
+    |----------------------------------------------------------------------
+    |
+    | Shared by the doctor, their secretary and the admin. The role decides
+    | which clinic each request works on; see StaffController. Reading the
+    | calendar itself stays on GET /appointments, which is already scoped.
+    |
+    */
+    Route::middleware([
+        'auth:sanctum',
+        Portal::middlewareAllowing(Portal::Clinic, Portal::Admin),
+        'role:doctor,secretary,admin',
+    ])
+        ->prefix('staff')
+        ->name('staff.')
+        ->group(function (): void {
+            Route::get('/patients', [StaffPatientController::class, 'index'])->name('patients.index');
+            Route::get('/payments', [StaffPaymentController::class, 'index'])->name('payments.index');
+
+            Route::post('/appointments', [StaffAppointmentController::class, 'store'])->name('appointments.store');
+            Route::post('/appointments/{appointment}/cancel', [StaffAppointmentController::class, 'cancel'])
+                ->name('appointments.cancel');
+            Route::patch('/appointments/{appointment}/duration', [StaffAppointmentController::class, 'updateDuration'])
+                ->name('appointments.duration');
+
+            Route::apiResource('schedules', StaffScheduleController::class)->except('show');
+            Route::apiResource('schedule-exceptions', StaffScheduleExceptionController::class)
+                ->only(['index', 'store', 'destroy'])
+                ->parameters(['schedule-exceptions' => 'exception']);
+        });
 
     /*
     |----------------------------------------------------------------------

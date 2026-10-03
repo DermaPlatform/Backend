@@ -82,6 +82,28 @@ class PaymentService
     }
 
     /**
+     * Settle an appointment paid in cash at the desk.
+     *
+     * There is no receipt image to review, so the payment is written already
+     * verified, under the name of the staff member who took the money. Call
+     * it inside the transaction that creates the appointment.
+     */
+    public function recordCashPayment(Appointment $appointment, User $staff): Payment
+    {
+        return Payment::create([
+            'patient_id' => $appointment->patient_id,
+            'appointment_id' => $appointment->id,
+            'amount' => $appointment->price,
+            'receipt_number' => $this->nextReceiptNumber(),
+            'method' => 'cash',
+            'status' => PaymentStatus::Verified,
+            'verified_by' => $staff->id,
+            'verified_at' => now(),
+            'paid_at' => now(),
+        ]);
+    }
+
+    /**
      * Confirm a receipt and release whatever it was paying for.
      */
     public function verify(Payment $payment, User $staff): Payment
