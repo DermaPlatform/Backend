@@ -1077,6 +1077,9 @@ POST /payments/{id}/verify           → الموعد يصير approved
 | `account.deactivated` | تعطيل حساب | `user` | — |
 | `account.password_reset` | الأدمن غيّر كلمة سر حساب | `user` | — |
 | `subscription.extended` | تمديد اشتراك أو تجربة | `user` (الطبيب) | `from` و `to`، كلٌّ فيه `status` و `ends_at` |
+| `appointment.booked_by_phone` | حجز تلفوني من العيادة | `appointment` | `patient_id`, `doctor_id`, `start_at`, `price` |
+| `appointment.cancelled_by_clinic` | إلغاء من العيادة | `appointment` | `reason`, `refund_required` |
+| `appointment.duration_changed` | تعديل مدة موعد | `appointment` | `from_minutes`, `to_minutes` |
 
 كلمات السر لا تُكتب في السجل إطلاقاً.
 
@@ -1104,3 +1107,132 @@ POST /payments/{id}/verify           → الموعد يصير approved
   "created_at": "2026-10-03T09:00:00+00:00"
 }
 ```
+
+---
+
+## 16. تشغيل العيادة — `/staff/*`
+
+كل المسارات هنا تحت `/api/v1/staff` وتتطلب توكن بوابة `clinic` أو `admin`. المريض ← `403`.
+
+### 16.1 مين بشوف شو
+
+| الدور | النطاق |
+|---|---|
+| طبيب | عيادته فقط |
+| سكرتير | عيادة طبيبه فقط |
+| أدمن | كل العيادات، ويضيّق بـ `doctor_id` |
+
+- `doctor_id` **ممنوع** على الطبيب والسكرتير (`422`): العيادة تتحدد من هوية المستخدم لا من الطلب.
+- الأدمن **ملزم** بإرسال `doctor_id` في كل ما يخص عيادة بعينها: الحجز التلفوني، وجدول الدوام، والإجازات.
+- سجل يخص عيادة أخرى ← `403`.
+
+> **الجدول اليومي وقوائم المواعيد** ليست هنا: `GET /appointments` (قسم 12.4) يقيّد نفسه بعيادة المتصل أصلاً.
+> جدول اليوم المؤكَّد = `GET /appointments?period=today&status=approved`. الأدمن يضيف `doctor_id` إن أراد.
+
+### 16.2 المرضى — `GET /staff/patients`
+
+مرضى العيادة: كل من له موعد عند هذا الطبيب. الأدمن يرى كل المرضى. مع pagination.
+
+| باراميتر | الوصف |
+|---|---|
+| `q` | بحث بالاسم أو الهاتف |
+| `per_page` | حجم الصفحة |
+
+```json
+{ "id": 7, "name": "أحمد", "phone": "+970599123456", "email": null, "image_url": null,
+  "appointments_count": 3, "last_appointment_at": "2026-09-20T10:00:00+03:00" }
+```
+
+**لا شيء تشخيصياً:** لا `birth_date` ولا `gender` ولا `age`، لأي دور. `email` قد يكون `null` لمريض حُجز له تلفونياً.
+
+### 16.3 المدفوعات — `GET /staff/payments`
+
+طابور مراجعة الإيصالات، الأحدث أولاً. يشمل مدفوعات المواعيد والاستشارات. مع pagination.
+
+| باراميتر | الوصف |
+|---|---|
+| `status` | `pending` · `submitted` · `verified` · `rejected` |
+| `from` · `to` | `YYYY-MM-DD` بتوقيت العيادة |
+| `q` | رقم الإيصال، أو المرجع، أو اسم/هاتف المريض |
+
+كل عنصر هو كائن الدفع المعتاد مضافاً إليه: `appointment_id`، `consultation_id`، `patient` (بصيغة 16.2)، و `appointment` (`id`, `status`, `start_at`, `service`, `doctor`) إن كان الدفع لموعد.
+التحقق والرفض يبقيان على `POST /payments/{id}/verify` و `/reject`.
+
+### 16.4 الحجز التلفوني — `POST /staff/appointments` ← `201`
+
+السكرتير يحجز لمريض اتصل. الموعد يُنشأ **مؤكَّداً** (`approved`) ومدفوعاً **نقداً** (`method: cash`, `verified`) في خطوة واحدة، بلا مهلة ولا إيصال.
+
+| الحقل | القواعد |
+|---|---|
+| `patient_phone` | مطلوب. به يُعرَّف المريض |
+| `patient_name` | مطلوب. يُستخدم فقط إن كان الرقم جديداً |
+| `service_id` | مطلوب، خدمة يقدمها الطبيب |
+| `start_at` | مطلوب، في المستقبل |
+| `doctor_id` | للأدمن فقط، ومطلوب منه |
+
+- رقم موجود لمريض ← يُستخدم حسابه كما هو. رقم جديد ← يُفتح له حساب بلا إيميل وبكلمة سر عشوائية.
+- رقم يخص طبيباً أو سكرتيراً ← `422`.
+- الفترة مأخوذة ← `409`، ولا يُنشأ حساب.
+
+### 16.5 إلغاء من العيادة — `POST /staff/appointments/{id}/cancel`
+
+| الحقل | القواعد |
+|---|---|
+| `reason` | **مطلوب** |
+
+لا تنطبق مهلة الـ 24 ساعة الخاصة بالمريض. إن كان الموعد مدفوعاً يعود `refund_required: true` — **الاسترجاع نفسه يتم خارج النظام**. موعد مغلق أصلاً ← `422`.
+
+### 16.6 تعديل المدة — `PATCH /staff/appointments/{id}/duration`
+
+| الحقل | القواعد |
+|---|---|
+| `duration_minutes` | مطلوب، من 5 إلى 480 |
+
+يغيّر `end_at` فقط. إن تداخلت المدة الجديدة مع موعد آخر ← `409`. موعد مغلق ← `422`.
+
+### 16.7 جدول الدوام — `/staff/schedules`
+
+كل صف وردية واحدة في يوم واحد من الأسبوع. التعديل يظهر للمرضى فوراً.
+
+```json
+{ "id": 3, "doctor_id": 12, "weekday": 0, "starts_at": "09:00", "ends_at": "13:00", "slot_minutes": 30, "is_active": true }
+```
+
+| الحقل | القواعد |
+|---|---|
+| `weekday` | `0` الأحد … `6` السبت |
+| `starts_at` · `ends_at` | `HH:MM` بتوقيت العيادة، والنهاية بعد البداية |
+| `slot_minutes` | من 5 إلى 240 |
+| `is_active` | اختياري، الافتراضي `true` |
+
+- `GET` · `POST` · `PUT /{id}` (ترسل الوردية كاملة) · `DELETE /{id}`.
+- وردية تتداخل مع وردية فعّالة أخرى في نفس اليوم ← `422` على `starts_at`.
+- حذف وردية أو تقليصها أو تعطيلها وفيها مواعيد قادمة ← **`409`** مع `stranded_appointments` (العدد). ألغِ تلك المواعيد أو انقلها أولاً.
+
+### 16.8 الإجازات — `/staff/schedule-exceptions`
+
+| الحقل | القواعد |
+|---|---|
+| `date` | مطلوب، `YYYY-MM-DD`، اليوم أو بعده |
+| `starts_at` · `ends_at` | اختياريان معاً. بدونهما = **يوم كامل** |
+| `reason` | مطلوب |
+
+- `GET` (اليوم وما بعده) · `POST` · `DELETE /{id}`.
+- إجازة فوق مواعيد قادمة ← **`409`** مع `stranded_appointments`.
+
+### 16.9 جدول مرجعي
+
+| الطريقة | المسار | نجاح |
+|---|---|---|
+| `GET` | `/api/v1/staff/patients` | `200` |
+| `GET` | `/api/v1/staff/payments` | `200` |
+| `POST` | `/api/v1/staff/appointments` | `201` / `409` |
+| `POST` | `/api/v1/staff/appointments/{id}/cancel` | `200` |
+| `PATCH` | `/api/v1/staff/appointments/{id}/duration` | `200` / `409` |
+| `GET` | `/api/v1/staff/schedules` | `200` |
+| `POST` | `/api/v1/staff/schedules` | `201` |
+| `PUT` | `/api/v1/staff/schedules/{id}` | `200` / `409` |
+| `DELETE` | `/api/v1/staff/schedules/{id}` | `200` / `409` |
+| `GET` | `/api/v1/staff/schedule-exceptions` | `200` |
+| `POST` | `/api/v1/staff/schedule-exceptions` | `201` / `409` |
+| `DELETE` | `/api/v1/staff/schedule-exceptions/{id}` | `200` |

@@ -66,6 +66,15 @@ class AppointmentPolicy
     }
 
     /**
+     * Cancelling on the clinic's side or changing the duration. The same
+     * people who settle the receipt run the calendar.
+     */
+    public function manage(User $user, Appointment $appointment): bool
+    {
+        return $this->review($user, $appointment);
+    }
+
+    /**
      * A secretary is bound to exactly one doctor.
      *
      * The null check is not defensive noise. Without it a secretary whose
