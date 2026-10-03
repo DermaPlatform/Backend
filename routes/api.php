@@ -3,6 +3,8 @@
 use App\Enums\Portal;
 use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminCategoryController;
+use App\Http\Controllers\Api\V1\AdminDoctorController;
+use App\Http\Controllers\Api\V1\AdminSecretaryController;
 use App\Http\Controllers\Api\V1\AdminServiceController;
 use App\Http\Controllers\Api\V1\AppointmentController;
 use App\Http\Controllers\Api\V1\AppointmentReceiptController;
@@ -172,5 +174,22 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::delete('/services/{service}/image', [AdminServiceController::class, 'destroyImage'])
                 ->name('services.image.destroy');
             Route::apiResource('services', AdminServiceController::class);
+
+            /*
+             * Staff accounts (US-025). No destroy: appointments and payments
+             * point at these users, so an account is deactivated, not deleted.
+             */
+            Route::post('/doctors/{doctor}/toggle-active', [AdminDoctorController::class, 'toggleActive'])
+                ->name('doctors.toggle-active');
+            Route::apiResource('doctors', AdminDoctorController::class)->except('destroy');
+
+            Route::get('/doctors/{doctor}/secretaries', [AdminSecretaryController::class, 'index'])
+                ->name('doctors.secretaries.index');
+            Route::post('/doctors/{doctor}/secretaries', [AdminSecretaryController::class, 'store'])
+                ->name('doctors.secretaries.store');
+            Route::put('/secretaries/{secretary}', [AdminSecretaryController::class, 'update'])
+                ->name('secretaries.update');
+            Route::post('/secretaries/{secretary}/toggle-active', [AdminSecretaryController::class, 'toggleActive'])
+                ->name('secretaries.toggle-active');
         });
 });
