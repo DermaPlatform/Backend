@@ -58,7 +58,8 @@ class ConsultationService
                         config('nadara.uploads.consultation_directory'),
                         config('nadara.uploads.private_disk'),
                     ),
-                    'mime' => $photo->getClientMimeType(),
+                    // Detected from the bytes, not the type the browser claimed.
+                    'mime' => $photo->getMimeType(),
                     'size' => $photo->getSize(),
                 ]);
             }
@@ -76,6 +77,8 @@ class ConsultationService
      */
     public function reply(Consultation $consultation, User $sender, string $message): Consultation
     {
+        $this->assertOpenForMessages($consultation);
+
         return DB::transaction(function () use ($consultation, $sender, $message): Consultation {
             $consultation->messages()->create([
                 'sender_id' => $sender->id,
@@ -97,6 +100,30 @@ class ConsultationService
 
             return $consultation->refresh();
         });
+    }
+
+    /**
+     * A thread opens for messages once the money is confirmed and stays open
+     * until it is closed.
+     *
+     * Without this a patient could write into an unpaid consultation, which
+     * flips it to awaiting_reply and puts it in front of the doctor without
+     * the receipt ever being verified.
+     *
+     * @throws BookingNotAllowedException
+     */
+    private function assertOpenForMessages(Consultation $consultation): void
+    {
+        if ($consultation->status === ConsultationStatus::PendingPayment) {
+            throw new BookingNotAllowedException(
+                'Messages open once the consultation payment is confirmed.',
+                'status',
+            );
+        }
+
+        if ($consultation->status === ConsultationStatus::Closed) {
+            throw new BookingNotAllowedException('This consultation is closed.', 'status');
+        }
     }
 
     /**

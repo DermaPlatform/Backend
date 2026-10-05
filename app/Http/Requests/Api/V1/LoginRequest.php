@@ -103,7 +103,18 @@ class LoginRequest extends FormRequest
      */
     private function opensPortal(?User $user, Portal $portal): bool
     {
-        if (! $user || ! Hash::check($this->string('password')->value(), $user->password)) {
+        /*
+         * An unknown address still pays for one hash check. Returning at once
+         * would answer measurably faster than a wrong password, and the time
+         * difference alone tells an attacker which addresses have accounts.
+         */
+        if (! $user) {
+            Hash::check($this->string('password')->value(), self::timingHash());
+
+            return false;
+        }
+
+        if (! Hash::check($this->string('password')->value(), $user->password)) {
             return false;
         }
 
@@ -112,6 +123,17 @@ class LoginRequest extends FormRequest
         }
 
         return $user->role !== UserRole::Secretary || $user->doctor_id !== null;
+    }
+
+    /**
+     * A hash made with the current cost settings, compared against when the
+     * address matches no account. Built once per process.
+     */
+    private static function timingHash(): string
+    {
+        static $hash = null;
+
+        return $hash ??= Hash::make('nadara-timing-equaliser');
     }
 
     /**

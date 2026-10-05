@@ -66,7 +66,7 @@ it('tells the patient when the clinic cancels', function (): void {
         'kind' => NotificationKind::AppointmentCancelledByClinic->value,
         'appointment_id' => $this->appointment->id,
         'reason' => 'الطبيب مسافر',
-        'refund_required' => false,
+        'refund_required' => true,
     ]);
 });
 

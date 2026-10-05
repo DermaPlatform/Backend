@@ -160,6 +160,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:api')->group(function
          * policy: a doctor and their secretary both belong here, but only for
          * their own patients.
          */
+        Route::get('/payments/{payment}/receipt', [PrivateFileController::class, 'paymentReceipt'])
+            ->name('payments.receipt.show');
+
         Route::middleware(Portal::middlewareAllowing(Portal::Clinic, Portal::Admin))->group(function (): void {
             Route::post('/payments/{payment}/verify', [PaymentReviewController::class, 'verify'])
                 ->name('payments.verify');

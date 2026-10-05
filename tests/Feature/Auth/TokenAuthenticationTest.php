@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Carbon\CarbonImmutable;
 
 it('returns the authenticated user from the me endpoint', function () {
     $user = User::factory()->doctor()->create();
@@ -100,4 +101,24 @@ it('does not let one user act with another users token', function () {
         ->assertJsonPath('data.id', $owner->id);
 
     expect($other->tokens()->count())->toBe(0);
+});
+
+it('issues tokens that expire, and says when', function () {
+    $user = User::factory()->patient()->create(['password' => 'password']);
+
+    $response = $this->postJson(route('api.v1.auth.login'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ])->assertOk();
+
+    $expiresAt = CarbonImmutable::parse($response->json('data.expires_at'));
+
+    expect($expiresAt->between(now()->addDays(29), now()->addDays(31)))->toBeTrue();
+
+    $this->app['auth']->forgetGuards();
+    $this->travel(31)->days();
+
+    $this->withToken($response->json('data.token'))
+        ->getJson(route('api.v1.auth.me'))
+        ->assertUnauthorized();
 });

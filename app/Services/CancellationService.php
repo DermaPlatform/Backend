@@ -69,13 +69,21 @@ class CancellationService
          * AppointmentStatus::blocking(), so availability stops counting it
          * the moment this commits. Clearing the hold keeps the row honest
          * rather than leaving a deadline on something already closed.
+         *
+         * A receipt still under review is money the patient has already
+         * transferred. Once the appointment is gone nobody will verify it,
+         * so it is flagged for the clinic to settle alongside verified ones.
          */
         $appointment->update([
             'status' => AppointmentStatus::Cancelled,
             'cancelled_at' => now(),
             'cancellation_reason' => $reason,
             'hold_expires_at' => null,
-            'refund_required' => $appointment->payment?->status === PaymentStatus::Verified,
+            'refund_required' => in_array(
+                $appointment->payment?->status,
+                [PaymentStatus::Verified, PaymentStatus::Submitted],
+                true,
+            ),
         ]);
 
         return $appointment->refresh();
