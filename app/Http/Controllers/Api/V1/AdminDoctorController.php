@@ -114,7 +114,7 @@ class AdminDoctorController extends Controller
              * the old one must not outlive it.
              */
             if ($request->has('password')) {
-                $doctor->tokens()->delete();
+                $doctor->revokeAllSessions();
 
                 AuditLog::record($request->user(), AuditAction::AccountPasswordReset, $doctor);
             }
@@ -141,7 +141,7 @@ class AdminDoctorController extends Controller
             $doctor->update(['is_active' => ! $doctor->is_active]);
 
             if (! $doctor->is_active) {
-                $doctor->tokens()->delete();
+                $doctor->revokeAllSessions();
             }
 
             AuditLog::record(
