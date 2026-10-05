@@ -129,6 +129,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Push notifications
+    |--------------------------------------------------------------------------
+    |
+    | The VAPID keys themselves live in config/webpush.php. Without them push
+    | is off and nothing below is used.
+    |
+    | allowed_hosts: the push services of the browsers we support. The server
+    | posts to whatever address a subscription names, so an address on any
+    | other host is refused. A subdomain of a listed host is accepted.
+    |
+    | max_devices_per_user: how many devices one account may register. The
+    | least recently used is dropped when a new one would exceed it.
+    |
+    */
+
+    'push' => [
+        'allowed_hosts' => [
+            'fcm.googleapis.com',                 // Chrome, Edge on Android, Samsung Internet, Opera, Brave
+            'updates.push.services.mozilla.com',  // Firefox
+            'notify.windows.com',                 // Edge on Windows
+            'push.apple.com',                     // Safari on iOS, iPadOS and macOS
+        ],
+        'max_devices_per_user' => 10,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Rate limiting
     |--------------------------------------------------------------------------
     |

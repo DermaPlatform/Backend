@@ -68,7 +68,7 @@ class AdminSecretaryController extends Controller
             $secretary->update($request->validated());
 
             if ($request->has('password')) {
-                $secretary->tokens()->delete();
+                $secretary->revokeAllSessions();
 
                 AuditLog::record($request->user(), AuditAction::AccountPasswordReset, $secretary);
             }
@@ -92,7 +92,7 @@ class AdminSecretaryController extends Controller
             $secretary->update(['is_active' => ! $secretary->is_active]);
 
             if (! $secretary->is_active) {
-                $secretary->tokens()->delete();
+                $secretary->revokeAllSessions();
             }
 
             AuditLog::record(

@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\PatientAuthController;
 use App\Http\Controllers\Api\V1\PaymentReviewController;
 use App\Http\Controllers\Api\V1\PrivateFileController;
 use App\Http\Controllers\Api\V1\ProfileController;
+use App\Http\Controllers\Api\V1\PushSubscriptionController;
 use App\Http\Controllers\Api\V1\StaffAppointmentController;
 use App\Http\Controllers\Api\V1\StaffPatientController;
 use App\Http\Controllers\Api\V1\StaffPaymentController;
@@ -242,6 +243,26 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:api')->group(function
         Route::post('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
         Route::post('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
     });
+
+    /*
+    |----------------------------------------------------------------------
+    | Push subscriptions
+    |----------------------------------------------------------------------
+    |
+    | The devices a user wants those same notifications delivered to while
+    | the application is closed. Open to every signed in role: who is
+    | notified about what is decided where the notification is sent, not
+    | here.
+    |
+    */
+    Route::middleware('auth:sanctum')
+        ->prefix('push-subscriptions')
+        ->name('push-subscriptions.')
+        ->group(function (): void {
+            Route::get('/vapid-key', [PushSubscriptionController::class, 'vapidKey'])->name('vapid-key');
+            Route::post('/', [PushSubscriptionController::class, 'store'])->name('store');
+            Route::delete('/', [PushSubscriptionController::class, 'destroy'])->name('destroy');
+        });
 
     /*
     |----------------------------------------------------------------------

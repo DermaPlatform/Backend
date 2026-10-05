@@ -44,11 +44,12 @@ class AuthController extends Controller
     }
 
     /**
-     * Revoke every access token belonging to the user.
+     * Revoke every access token belonging to the user, and stop pushing
+     * notifications to every device that was receiving them.
      */
     public function logoutAll(Request $request): JsonResponse
     {
-        $request->user()->tokens()->delete();
+        $request->user()->revokeAllSessions();
 
         return response()->json([
             'message' => 'Logged out from all devices.',
@@ -68,7 +69,7 @@ class AuthController extends Controller
                     'remember_token' => Str::random(60),
                 ])->save();
 
-                $user->tokens()->delete();
+                $user->revokeAllSessions();
 
                 event(new PasswordReset($user));
             }

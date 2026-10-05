@@ -70,6 +70,9 @@ function accessMatrix(): array
         'notifications.index' => SIGNED_IN,
         'notifications.read' => SIGNED_IN,
         'notifications.read-all' => SIGNED_IN,
+        'push-subscriptions.vapid-key' => SIGNED_IN,
+        'push-subscriptions.store' => SIGNED_IN,
+        'push-subscriptions.destroy' => SIGNED_IN,
 
         // Appointments: everyone lists and opens their own slice; only the
         // patient books, cancels as a patient and uploads the receipt.

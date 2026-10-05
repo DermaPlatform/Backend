@@ -16,11 +16,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
+use NotificationChannels\WebPush\HasPushSubscriptions;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, HasPushSubscriptions, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -88,6 +89,19 @@ class User extends Authenticatable
     protected $attributes = [
         'is_active' => true,
     ];
+
+    /**
+     * Sign the account out everywhere.
+     *
+     * Tokens alone are not the whole session: a device that was allowed to
+     * show this account's notifications would keep receiving them after the
+     * password changed or the account was closed, so those go with them.
+     */
+    public function revokeAllSessions(): void
+    {
+        $this->tokens()->delete();
+        $this->pushSubscriptions()->delete();
+    }
 
     /**
      * @return HasOne<DoctorProfile, $this>
