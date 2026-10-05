@@ -50,9 +50,13 @@ return [
     |
     */
 
-    'expiration' => env('SANCTUM_EXPIRATION') !== null
-        ? (int) env('SANCTUM_EXPIRATION')
-        : null,
+    /*
+     * Thirty days unless set. An empty value used to read as 0, which Sanctum
+     * treats as "never", so a token copied off a shared clinic computer stayed
+     * valid for good. Each token also carries its own expires_at, so the
+     * client can see the deadline.
+     */
+    'expiration' => (int) (env('SANCTUM_EXPIRATION') ?: 60 * 24 * 30),
 
     /*
     |--------------------------------------------------------------------------

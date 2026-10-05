@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -22,6 +23,12 @@ return Application::configure(basePath: dirname(__DIR__))
          * blows up with a 500 whenever a client omits the JSON accept header.
          */
         $middleware->redirectGuestsTo(fn (): ?string => null);
+
+        /*
+         * Global rather than on the api group, so a response rendered from an
+         * exception (401, 403, 404, 422) carries the headers as well.
+         */
+        $middleware->append(SecurityHeaders::class);
 
         $middleware->alias([
             'role' => EnsureRole::class,

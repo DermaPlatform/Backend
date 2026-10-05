@@ -111,7 +111,7 @@ it('lists the clinic\'s payments, consultations included, newest first', functio
     $this->getJson(route('api.v1.staff.payments.index', ['q' => 'Amal']))
         ->assertJsonPath('data.*.id', [$appointmentPayment->id]);
 
-    $this->getJson(route('api.v1.staff.payments.index', ['from' => now()->toDateString()]))
+    $this->getJson(route('api.v1.staff.payments.index', ['from' => now(config('nadara.clinic_timezone'))->toDateString()]))
         ->assertJsonPath('data.*.id', [$consultationPayment->id]);
 
     $this->getJson(route('api.v1.staff.payments.index', ['status' => 'nonsense']))

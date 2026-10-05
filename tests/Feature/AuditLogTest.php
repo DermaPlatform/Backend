@@ -16,7 +16,7 @@ beforeEach(function (): void {
 
 function submittedPayment(User $doctor): Payment
 {
-    $appointment = Appointment::factory()->create(['doctor_id' => $doctor->id]);
+    $appointment = Appointment::factory()->awaitingReview()->create(['doctor_id' => $doctor->id]);
 
     return Payment::factory()->create([
         'appointment_id' => $appointment->id,

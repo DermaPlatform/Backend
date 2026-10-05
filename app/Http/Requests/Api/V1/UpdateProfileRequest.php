@@ -28,6 +28,7 @@ class UpdateProfileRequest extends FormRequest
                 'sometimes',
                 'nullable',
                 'string',
+                'regex:/^\+?[0-9\s\-()]{7,20}$/',
                 'max:20',
                 Rule::unique('users', 'phone')->ignore($this->user()->id),
             ],

@@ -48,5 +48,23 @@ class AppointmentReceiptController extends Controller
                 'status',
             );
         }
+
+        /*
+         * The scheduled command settles lapsed holds only once a minute, but
+         * availability frees the slot the moment the deadline passes. A
+         * receipt arriving in between would revive a booking whose slot may
+         * already belong to someone else, so the hold is settled here.
+         */
+        if ($appointment->hold_expires_at !== null && $appointment->hold_expires_at->isPast()) {
+            $appointment->update([
+                'status' => AppointmentStatus::Expired,
+                'hold_expires_at' => null,
+            ]);
+
+            throw new BookingNotAllowedException(
+                'The payment window for this appointment has ended. Please book again.',
+                'status',
+            );
+        }
     }
 }

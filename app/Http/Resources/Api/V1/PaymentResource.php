@@ -26,8 +26,8 @@ class PaymentResource extends JsonResource
             'receipt_number' => $this->receipt_number,
             'has_receipt' => $this->receipt_path !== null,
             'receipt_url' => $this->when(
-                $this->receipt_path !== null && $this->appointment_id !== null,
-                fn (): string => route('api.v1.appointments.receipt.show', $this->appointment_id),
+                $this->receipt_path !== null,
+                fn (): string => route('api.v1.payments.receipt.show', $this->id),
             ),
             'method' => $this->method,
             'reference' => $this->reference,

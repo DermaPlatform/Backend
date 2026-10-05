@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\Attachment;
 use App\Models\Consultation;
+use App\Models\Payment;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -36,6 +37,25 @@ class PrivateFileController extends Controller
     }
 
     /**
+     * The receipt behind any payment, whether it pays for an appointment or a
+     * consultation.
+     *
+     * The review queue lists both kinds, and staff must see the slip before
+     * confirming it. A consultation receipt cannot go through the
+     * consultation's own policy, which keeps the secretary out of the
+     * symptoms, so access follows the payment's policy instead: the money is
+     * exactly what the secretary is there to settle.
+     */
+    public function paymentReceipt(Payment $payment): StreamedResponse
+    {
+        Gate::authorize('view', $payment);
+
+        abort_if($payment->receipt_path === null, 404);
+
+        return $this->stream($payment->receipt_path);
+    }
+
+    /**
      * One photograph attached to a consultation.
      *
      * The attachment is resolved through the consultation rather than on its
@@ -61,6 +81,10 @@ class PrivateFileController extends Controller
 
         abort_unless($disk->exists($path), 404);
 
-        return $disk->response($path);
+        /*
+         * A receipt or a clinical photo must not linger in a shared or proxy
+         * cache once the person who opened it has signed out.
+         */
+        return $disk->response($path, null, ['Cache-Control' => 'private, no-store']);
     }
 }

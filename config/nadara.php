@@ -33,6 +33,13 @@ return [
     'cancellation_window_hours' => env('NADARA_CANCELLATION_WINDOW_HOURS', 24),
 
     /*
+     * How many unpaid holds one patient may keep running at once. A hold
+     * takes the slot off the calendar for everyone else, so without a cap a
+     * single account could empty a doctor's week without paying for any of it.
+     */
+    'max_open_holds_per_patient' => env('NADARA_MAX_OPEN_HOLDS_PER_PATIENT', 2),
+
+    /*
      * How far ahead the availability endpoint will look. Without a ceiling a
      * caller could ask for a year of slots in one request.
      */
